@@ -45,7 +45,7 @@ import Data.Monoid (Monoid(mappend))
 #endif
 import Control.Applicative (Alternative(..), liftA2, many, (<|>))
 import Control.Monad (MonadPlus(..))
-import Data.Attoparsec.Internal.Types (Parser(..), IResult(..))
+import Data.Attoparsec.Internal.Types (DirParser(..), Parser, IResult(..))
 import Data.Attoparsec.Internal (endOfInput, atEnd, satisfyElem)
 import Data.ByteString (ByteString)
 import Data.Foldable (asum)
@@ -58,14 +58,14 @@ import Prelude hiding (succ)
 --
 -- This combinator is provided for compatibility with Parsec.
 -- attoparsec parsers always backtrack on failure.
-try :: Parser i a -> Parser i a
+try :: DirParser d i a -> DirParser d i a
 try = id
 {-# INLINE try #-}
 
 -- | Name the parser, in case failure occurs.
-(<?>) :: Parser i a
+(<?>) :: DirParser d i a
       -> String                 -- ^ the name to use if parsing fails
-      -> Parser i a
+      -> DirParser d i a
 p <?> msg0 = Parser $ \t pos more lose succ ->
              let lose' t' pos' more' strs msg = lose t' pos' more' (msg0:strs) msg
              in runParser p t pos more lose' succ
@@ -249,7 +249,7 @@ feed (Done t r) d     = Done (mappend t d) r
 {-# INLINE feed #-}
 
 -- | Apply a parser without consuming any input.
-lookAhead :: Parser i a -> Parser i a
+lookAhead :: DirParser d i a -> DirParser d i a
 lookAhead p = Parser $ \t pos more lose succ ->
   let succ' t' _pos' more' = succ t' pos more'
   in runParser p t pos more lose succ'

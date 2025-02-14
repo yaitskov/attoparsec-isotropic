@@ -65,7 +65,7 @@ module Data.Attoparsec.Text.Internal
     , atEnd
     ) where
 
-import Control.Applicative ((<|>), (<$>), pure, (*>))
+import Control.Applicative ((<|>))
 import Control.Monad (when)
 import Data.Attoparsec.Combinator ((<?>))
 import Data.Attoparsec.Internal

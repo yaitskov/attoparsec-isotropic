@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP, BangPatterns, GeneralizedNewtypeDeriving, OverloadedStrings,
-    Rank2Types, RecordWildCards, TypeFamilies #-}
+    Rank2Types, RecordWildCards, TypeFamilies, DataKinds,
+    MultiParamTypeClasses #-}
 -- |
 -- Module      :  Data.Attoparsec.Internal.Types
 -- Copyright   :  Bryan O'Sullivan 2007-2015
@@ -14,24 +15,30 @@
 
 module Data.Attoparsec.Internal.Types
     (
-      Parser(..)
+      Parser
+    , DirParser(..)
     , State
     , Failure
     , Success
-    , Pos(..)
+    , DirFailure
+    , DirSuccess
+    , Pos
     , IResult(..)
     , More(..)
     , (<>)
     , Chunk(..)
+    , DirChunk(..)
+    , Dir(..)
+    , DirPos(..)
+    , DirectedPlus(..)
     ) where
 
-import Control.Applicative as App (Applicative(..), (<$>))
+import Control.Applicative as App (Applicative(..))
 import Control.Applicative (Alternative(..))
 import Control.DeepSeq (NFData(rnf))
 import Control.Monad (MonadPlus(..))
 import qualified Control.Monad.Fail as Fail (MonadFail(..))
 import Data.Monoid as Mon (Monoid(..))
-import Data.Semigroup  (Semigroup(..))
 import Data.Word (Word8)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -43,8 +50,21 @@ import Prelude hiding (succ)
 import qualified Data.Attoparsec.ByteString.Buffer as B
 import qualified Data.Attoparsec.Text.Buffer as T
 
-newtype Pos = Pos { fromPos :: Int }
+data Dir = Forward | Backward deriving (Eq, Show)
+
+newtype DirPos (d :: Dir) = Pos { fromPos :: Int }
             deriving (Eq, Ord, Show, Num)
+
+class DirectedPlus (d :: Dir) where
+  there :: DirPos d -> DirPos d
+
+instance DirectedPlus Forward where
+  there = id
+
+instance DirectedPlus Backward where
+  there = negate
+
+type Pos = DirPos Forward
 
 -- | The result of a parse.  This is parameterised over the type @i@
 -- of string that was processed.
@@ -107,21 +127,26 @@ instance Functor (IResult i) where
 --   arbitrary lookahead.)
 --
 -- * 'Alternative', which follows 'MonadPlus'.
-newtype Parser i a = Parser {
+newtype DirParser (d :: Dir) i a = Parser {
       runParser :: forall r.
-                   State i -> Pos -> More
-                -> Failure i (State i)   r
-                -> Success i (State i) a r
+                   State i -> DirPos d -> More
+                -> DirFailure d i (State i)   r
+                -> DirSuccess d i (State i) a r
                 -> IResult i r
     }
 
+type Parser = DirParser Forward
 type family State i
 type instance State ByteString = B.Buffer
 type instance State Text = T.Buffer
 
-type Failure i t   r = t -> Pos -> More -> [String] -> String
-                       -> IResult i r
-type Success i t a r = t -> Pos -> More -> a -> IResult i r
+type DirFailure d i t   r =
+  t -> DirPos d -> More -> [String] -> String -> IResult i r
+type DirSuccess d i t a r =
+  t -> DirPos d -> More -> a -> IResult i r
+
+type Success i t a r = DirSuccess Forward i t a r
+type Failure i t   r = DirFailure Forward i t   r
 
 -- | Have we read all available input?
 data More = Complete | Incomplete
@@ -135,7 +160,7 @@ instance Mon.Monoid More where
     mappend = (<>)
     mempty  = Incomplete
 
-instance Monad (Parser i) where
+instance Monad (DirParser d i) where
 #if !(MIN_VERSION_base(4,13,0))
     fail = Fail.fail
     {-# INLINE fail #-}
@@ -153,35 +178,35 @@ instance Monad (Parser i) where
     {-# INLINE (>>) #-}
 
 
-instance Fail.MonadFail (Parser i) where
+instance Fail.MonadFail (DirParser d i) where
     fail err = Parser $ \t pos more lose _succ -> lose t pos more [] msg
       where msg = "Failed reading: " ++ err
     {-# INLINE fail #-}
 
-plus :: Parser i a -> Parser i a -> Parser i a
+plus :: DirParser d i a -> DirParser d i a -> DirParser d i a
 plus f g = Parser $ \t pos more lose succ ->
   let lose' t' _pos' more' _ctx _msg = runParser g t' pos more' lose succ
   in runParser f t pos more lose' succ
 
-instance MonadPlus (Parser i) where
+instance MonadPlus (DirParser d i) where
     mzero = fail "mzero"
     {-# INLINE mzero #-}
     mplus = plus
 
-instance Functor (Parser i) where
+instance Functor (DirParser d i) where
     fmap f p = Parser $ \t pos more lose succ ->
       let succ' t' pos' more' a = succ t' pos' more' (f a)
       in runParser p t pos more lose succ'
     {-# INLINE fmap #-}
 
-apP :: Parser i (a -> b) -> Parser i a -> Parser i b
+apP :: DirParser d i (a -> b) -> DirParser d i a -> DirParser d i b
 apP d e = do
   b <- d
   a <- e
   return (b a)
 {-# INLINE apP #-}
 
-instance Applicative (Parser i) where
+instance Applicative (DirParser d i) where
     pure v = Parser $ \t !pos more _lose succ -> succ t pos more v
     {-# INLINE pure #-}
     (<*>)  = apP
@@ -191,17 +216,17 @@ instance Applicative (Parser i) where
     x <* y = x >>= \a -> y >> pure a
     {-# INLINE (<*) #-}
 
-instance Semigroup (Parser i a) where
+instance Semigroup (DirParser d i a) where
     (<>) = plus
     {-# INLINE (<>) #-}
 
-instance Monoid (Parser i a) where
+instance Monoid (DirParser d i a) where
     mempty  = fail "mempty"
     {-# INLINE mempty #-}
     mappend = (<>)
     {-# INLINE mappend #-}
 
-instance Alternative (Parser i) where
+instance Alternative (DirParser d i) where
     empty = fail "empty"
     {-# INLINE empty #-}
 
@@ -227,13 +252,16 @@ class Monoid c => Chunk c where
   nullChunk :: c -> Bool
   -- | Append chunk to a buffer.
   pappendChunk :: State c -> c -> State c
-  -- | Position at the end of a buffer. The first argument is ignored.
-  atBufferEnd :: c -> State c -> Pos
-  -- | Return the buffer element at the given position along with its length.
-  bufferElemAt :: c -> Pos -> State c -> Maybe (ChunkElem c, Int)
   -- | Map an element to the corresponding character.
   --   The first argument is ignored.
   chunkElemToChar :: c -> ChunkElem c -> Char
+
+class (DirectedPlus d, Chunk c) => DirChunk (d :: Dir) c where
+  type DirChunkElem d c
+  -- | Position at the end of a buffer. The first argument is ignored.
+  atBufferEnd :: c -> State c -> DirPos d
+  -- | Return the buffer element at the given position along with its length.
+  bufferElemAt :: c -> DirPos d -> State c -> Maybe (DirChunkElem d c, Int)
 
 instance Chunk ByteString where
   type ChunkElem ByteString = Word8
@@ -241,14 +269,26 @@ instance Chunk ByteString where
   {-# INLINE nullChunk #-}
   pappendChunk = B.pappend
   {-# INLINE pappendChunk #-}
+  chunkElemToChar _ = w2c
+  {-# INLINE chunkElemToChar #-}
+
+instance DirChunk Forward ByteString where
+  type DirChunkElem Forward ByteString = Word8
   atBufferEnd _ = Pos . B.length
   {-# INLINE atBufferEnd #-}
   bufferElemAt _ (Pos i) buf
     | i < B.length buf = Just (B.unsafeIndex buf i, 1)
     | otherwise = Nothing
   {-# INLINE bufferElemAt #-}
-  chunkElemToChar _ = w2c
-  {-# INLINE chunkElemToChar #-}
+
+instance DirChunk Backward ByteString where
+  type DirChunkElem Backward ByteString = Word8
+  atBufferEnd _ = Pos . B.length
+  {-# INLINE atBufferEnd #-}
+  bufferElemAt _ (Pos i) buf
+    | i < B.length buf = Just (B.unsafeIndex buf i, 1)
+    | otherwise = Nothing
+  {-# INLINE bufferElemAt #-}
 
 instance Chunk Text where
   type ChunkElem Text = Char
@@ -256,11 +296,14 @@ instance Chunk Text where
   {-# INLINE nullChunk #-}
   pappendChunk = T.pappend
   {-# INLINE pappendChunk #-}
+  chunkElemToChar _ = id
+  {-# INLINE chunkElemToChar #-}
+
+instance DirChunk Forward Text where
+  type DirChunkElem Forward Text = Char
   atBufferEnd _ = Pos . T.length
   {-# INLINE atBufferEnd #-}
   bufferElemAt _ (Pos i) buf
     | i < T.length buf = let Iter c l = T.iter buf i in Just (c, l)
     | otherwise = Nothing
   {-# INLINE bufferElemAt #-}
-  chunkElemToChar _ = id
-  {-# INLINE chunkElemToChar #-}

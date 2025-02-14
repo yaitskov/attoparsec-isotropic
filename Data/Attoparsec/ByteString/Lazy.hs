@@ -35,6 +35,9 @@ module Data.Attoparsec.ByteString.Lazy
     , parse
     , parseOnly
     , parseTest
+    , dirParse
+    , dirParseOnly
+    , dirParseTest
     -- ** Result conversion
     , maybeResult
     , eitherResult
@@ -85,8 +88,8 @@ instance Functor Result where
     fmap = fmapR
 
 -- | Run a parser and return its result.
-parse :: A.Parser a -> ByteString -> Result a
-parse p s = case s of
+dirParse :: A.Directed d => A.DirParser d a -> ByteString -> Result a
+dirParse p s = case s of
               Chunk x xs -> go (A.parse p x) xs
               empty      -> go (A.parse p B.empty) empty
   where
@@ -95,9 +98,15 @@ parse p s = case s of
     go (T.Partial k) (Chunk y ys) = go (k y) ys
     go (T.Partial k) empty        = go (k B.empty) empty
 
+parse :: A.Parser a -> ByteString -> Result a
+parse = dirParse
+
 -- | Run a parser and print its result to standard output.
+dirParseTest :: (Directed d, Show a) => A.DirParser d a -> ByteString -> IO ()
+dirParseTest p s = print (dirParse p s)
+
 parseTest :: (Show a) => A.Parser a -> ByteString -> IO ()
-parseTest p s = print (parse p s)
+parseTest = dirParseTest
 
 -- | Convert a 'Result' value to a 'Maybe' value.
 maybeResult :: Result r -> Maybe r
@@ -119,6 +128,10 @@ eitherResult (Fail _ ctxs msg) = Left (intercalate " > " ctxs ++ ": " ++ msg)
 -- @
 --'parseOnly' (myParser 'Control.Applicative.<*' 'endOfInput')
 -- @
+dirParseOnly :: A.Directed d => A.DirParser d a -> ByteString -> Either String a
+dirParseOnly p = eitherResult . dirParse p
+{-# INLINE dirParseOnly #-}
+
 parseOnly :: A.Parser a -> ByteString -> Either String a
-parseOnly p = eitherResult . parse p
+parseOnly = dirParseOnly
 {-# INLINE parseOnly #-}

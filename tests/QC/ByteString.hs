@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, CPP, OverloadedStrings, ScopedTypeVariables, FlexibleContexts #-}
 module QC.ByteString (tests) where
 
 #if !MIN_VERSION_base(4,8,0)

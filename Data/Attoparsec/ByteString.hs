@@ -27,6 +27,8 @@ module Data.Attoparsec.ByteString
 
     -- * Parser types
       I.Parser
+    , I.DirParser
+    , I.Directed
     , Result
     , T.IResult(..)
     , I.compareResults
@@ -198,17 +200,17 @@ import qualified Data.Attoparsec.Internal.Types as T
 -- find the problems with, and improve the performance of your parser.
 
 -- | Run a parser and print its result to standard output.
-parseTest :: (Show a) => I.Parser a -> B.ByteString -> IO ()
+parseTest :: (I.Directed d, Show a) => I.DirParser d a -> B.ByteString -> IO ()
 parseTest p s = print (parse p s)
 
 -- | Run a parser with an initial input string, and a monadic action
 -- that can supply more input if needed.
-parseWith :: Monad m =>
+parseWith :: (I.Directed d, Monad m) =>
              (m B.ByteString)
           -- ^ An action that will be executed to provide the parser
           -- with more input, if necessary.  The action must return an
           -- 'B.empty' string when there is no more input available.
-          -> I.Parser a
+          -> I.DirParser d a
           -> B.ByteString
           -- ^ Initial input for the parser.
           -> m (Result a)

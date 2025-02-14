@@ -24,6 +24,8 @@ module Data.Attoparsec.ByteString.Char8
 
     -- * Parser types
       Parser
+    , DirParser
+    , BackParser
     , A.Result
     , A.IResult(..)
     , I.compareResults
@@ -134,7 +136,7 @@ import Data.Word (Word)
 import Control.Applicative ((<|>))
 import Control.Monad (void, when)
 import Data.Attoparsec.ByteString.FastSet (charClass, memberChar)
-import Data.Attoparsec.ByteString.Internal (Parser)
+import Data.Attoparsec.ByteString.Internal (DirParser, Parser, BackParser, Directed)
 import Data.Attoparsec.Combinator
 import Data.Attoparsec.Number (Number(..))
 import Data.Bits (Bits, (.|.), shiftL)
@@ -151,7 +153,7 @@ import qualified Data.Attoparsec.Internal as I
 import qualified Data.ByteString as B8
 import qualified Data.ByteString.Char8 as B
 
-instance (a ~ B.ByteString) => IsString (Parser a) where
+instance (Directed d, a ~ B.ByteString) => IsString (DirParser d a) where
     fromString = I.string . B.pack
 
 -- $encodings
@@ -175,7 +177,7 @@ instance (a ~ B.ByteString) => IsString (Parser a) where
 -- This parser requires the predicate to succeed on at least one byte
 -- of input: it will fail if the predicate never returns 'True' or if
 -- there is no input left.
-takeWhile1 :: (Char -> Bool) -> Parser B.ByteString
+takeWhile1 :: Directed d => (Char -> Bool) -> DirParser d B.ByteString
 takeWhile1 p = I.takeWhile1 (p . w2c)
 {-# INLINE takeWhile1 #-}
 
@@ -185,17 +187,17 @@ takeWhile1 p = I.takeWhile1 (p . w2c)
 --
 -- >digit = satisfy isDigit
 -- >    where isDigit c = c >= '0' && c <= '9'
-satisfy :: (Char -> Bool) -> Parser Char
+satisfy :: Directed d => (Char -> Bool) -> DirParser d Char
 satisfy = I.satisfyWith w2c
 {-# INLINE satisfy #-}
 
 -- | Match a letter, in the ISO-8859-15 encoding.
-letter_iso8859_15 :: Parser Char
+letter_iso8859_15 :: Directed d => DirParser d Char
 letter_iso8859_15 = satisfy isAlpha_iso8859_15 <?> "letter_iso8859_15"
 {-# INLINE letter_iso8859_15 #-}
 
 -- | Match a letter, in the ASCII encoding.
-letter_ascii :: Parser Char
+letter_ascii :: Directed d => DirParser d Char
 letter_ascii = satisfy isAlpha_ascii <?> "letter_ascii"
 {-# INLINE letter_ascii #-}
 
@@ -221,7 +223,7 @@ isAlpha_ascii c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 {-# INLINE isAlpha_ascii #-}
 
 -- | Parse a single digit.
-digit :: Parser Char
+digit :: Directed d => DirParser d Char
 digit = satisfy isDigit <?> "digit"
 {-# INLINE digit #-}
 
@@ -236,7 +238,7 @@ isDigit_w8 w = w - 48 <= 9
 {-# INLINE isDigit_w8 #-}
 
 -- | Match any character.
-anyChar :: Parser Char
+anyChar :: Directed d => DirParser d Char
 anyChar = satisfy $ const True
 {-# INLINE anyChar #-}
 
@@ -246,13 +248,13 @@ anyChar = satisfy $ const True
 -- /Note/: Because this parser does not fail, do not use it with
 -- combinators such as 'many', because such parsers loop until a
 -- failure occurs.  Careless use will thus result in an infinite loop.
-peekChar :: Parser (Maybe Char)
+peekChar :: Directed d => DirParser d (Maybe Char)
 peekChar = (fmap w2c) `fmap` I.peekWord8
 {-# INLINE peekChar #-}
 
 -- | Match any character, to perform lookahead.  Does not consume any
 -- input, but will fail if end of input has been reached.
-peekChar' :: Parser Char
+peekChar' :: Directed d => DirParser d Char
 peekChar' = w2c `fmap` I.peekWord8'
 {-# INLINE peekChar' #-}
 
@@ -279,22 +281,22 @@ isSpace_w8 w = w == 32 || w - 9 <= 4
 -- encoding.  For instance, it does not recognise U+00A0 (non-breaking
 -- space) as a space character, even though it is a valid ISO-8859-15
 -- byte.
-space :: Parser Char
+space :: Directed d => DirParser d Char
 space = satisfy isSpace <?> "space"
 {-# INLINE space #-}
 
 -- | Match a specific character.
-char :: Char -> Parser Char
+char :: Directed d => Char -> DirParser d Char
 char c = satisfy (== c) <?> [c]
 {-# INLINE char #-}
 
 -- | Match a specific character, but return its 'Word8' value.
-char8 :: Char -> Parser Word8
+char8 :: Directed d => Char -> DirParser d Word8
 char8 c = I.satisfy (== c2w c) <?> [c]
 {-# INLINE char8 #-}
 
 -- | Match any character except the given one.
-notChar :: Char -> Parser Char
+notChar :: Directed d => Char -> DirParser d Char
 notChar c = satisfy (/= c) <?> "not " ++ [c]
 {-# INLINE notChar #-}
 
@@ -327,7 +329,7 @@ notInClass s = not . inClass s
 -- /Note/: Because this parser does not fail, do not use it with
 -- combinators such as 'many', because such parsers loop until a
 -- failure occurs.  Careless use will thus result in an infinite loop.
-takeWhile :: (Char -> Bool) -> Parser B.ByteString
+takeWhile :: Directed d => (Char -> Bool) -> DirParser d B.ByteString
 takeWhile p = I.takeWhile (p . w2c)
 {-# INLINE takeWhile #-}
 
@@ -342,7 +344,7 @@ takeWhile p = I.takeWhile (p . w2c)
 -- /Note/: Because this parser does not fail, do not use it with
 -- combinators such as 'many', because such parsers loop until a
 -- failure occurs.  Careless use will thus result in an infinite loop.
-scan :: s -> (s -> Char -> Maybe s) -> Parser B.ByteString
+scan :: Directed d => s -> (s -> Char -> Maybe s) -> DirParser d B.ByteString
 scan s0 p = I.scan s0 (\s -> p s . w2c)
 {-# INLINE scan #-}
 
@@ -355,17 +357,17 @@ scan s0 p = I.scan s0 (\s -> p s . w2c)
 -- /Note/: Because this parser does not fail, do not use it with
 -- combinators such as 'many', because such parsers loop until a
 -- failure occurs.  Careless use will thus result in an infinite loop.
-takeTill :: (Char -> Bool) -> Parser B.ByteString
+takeTill :: Directed d => (Char -> Bool) -> DirParser d B.ByteString
 takeTill p = I.takeTill (p . w2c)
 {-# INLINE takeTill #-}
 
 -- | Skip past input for as long as the predicate returns 'True'.
-skipWhile :: (Char -> Bool) -> Parser ()
+skipWhile :: Directed d => (Char -> Bool) -> DirParser d ()
 skipWhile p = I.skipWhile (p . w2c)
 {-# INLINE skipWhile #-}
 
 -- | Skip over white space.
-skipSpace :: Parser ()
+skipSpace :: Directed d => DirParser d ()
 skipSpace = I.skipWhile isSpace_w8
 {-# INLINE skipSpace #-}
 
@@ -395,13 +397,13 @@ skipSpace = I.skipWhile isSpace_w8
 
 -- | /Obsolete/. A type-specialized version of '*>' for
 -- 'B.ByteString'. Use '*>' instead.
-(.*>) :: B.ByteString -> Parser a -> Parser a
+(.*>) :: Directed d => B.ByteString -> DirParser d a -> DirParser d a
 s .*> f = I.string s *> f
 {-# DEPRECATED (.*>) "This is no longer necessary, and will be removed. Use '*>' instead." #-}
 
 -- | /Obsolete/. A type-specialized version of '<*' for
 -- 'B.ByteString'. Use '<*' instead.
-(<*.) :: Parser a -> B.ByteString -> Parser a
+(<*.) :: Directed d => DirParser d a -> B.ByteString -> DirParser d a
 f <*. s = f <* I.string s
 {-# DEPRECATED (<*.) "This is no longer necessary, and will be removed. Use '<*' instead." #-}
 
@@ -421,7 +423,7 @@ isHorizontalSpace w = w == 32 || w == 9
 -- @\'a\'@ through @\'f\'@ may be upper or lower case.
 --
 -- This parser does not accept a leading @\"0x\"@ string.
-hexadecimal :: (Integral a, Bits a) => Parser a
+hexadecimal :: (Directed d, Integral a, Bits a) => DirParser d a
 hexadecimal = B8.foldl' step 0 `fmap` I.takeWhile1 isHexDigit
   where
     isHexDigit w = (w >= 48 && w <= 57) ||
@@ -443,7 +445,7 @@ hexadecimal = B8.foldl' step 0 `fmap` I.takeWhile1 isHexDigit
 {-# SPECIALISE hexadecimal :: Parser Word64 #-}
 
 -- | Parse and decode an unsigned decimal number.
-decimal :: Integral a => Parser a
+decimal :: (Directed d, Integral a) => DirParser d a
 decimal = B8.foldl' step 0 `fmap` I.takeWhile1 isDigit_w8
   where step a w = a * 10 + fromIntegral (w - 48)
 {-# SPECIALISE decimal :: Parser Int #-}
@@ -460,7 +462,7 @@ decimal = B8.foldl' step 0 `fmap` I.takeWhile1 isDigit_w8
 
 -- | Parse a number with an optional leading @\'+\'@ or @\'-\'@ sign
 -- character.
-signed :: Num a => Parser a -> Parser a
+signed :: (Num a) => Parser a -> Parser a
 {-# SPECIALISE signed :: Parser Int -> Parser Int #-}
 {-# SPECIALISE signed :: Parser Int8 -> Parser Int8 #-}
 {-# SPECIALISE signed :: Parser Int16 -> Parser Int16 #-}

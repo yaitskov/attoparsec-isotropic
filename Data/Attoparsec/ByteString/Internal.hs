@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns, CPP, GADTs, OverloadedStrings, RankNTypes,
-    RecordWildCards #-}
+    RecordWildCards, TypeApplications, ScopedTypeVariables, KindSignatures,
+    DataKinds, FlexibleContexts, PolyKinds #-}
 -- |
 -- Module      :  Data.Attoparsec.ByteString.Internal
 -- Copyright   :  Bryan O'Sullivan 2007-2015
@@ -16,6 +17,9 @@ module Data.Attoparsec.ByteString.Internal
     (
     -- * Parser types
       Parser
+    , BackParser
+    , DirParser
+    , Directed
     , Result
 
     -- * Running parsers
@@ -71,7 +75,7 @@ module Data.Attoparsec.ByteString.Internal
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative ((<$>))
 #endif
-import Control.Applicative ((<|>))
+import Control.Applicative ((<|>), liftA2)
 import Control.Monad (when)
 import Data.Attoparsec.ByteString.Buffer (Buffer, buffer)
 import Data.Attoparsec.ByteString.FastSet (charClass, memberWord8)
@@ -79,14 +83,17 @@ import Data.Attoparsec.Combinator ((<?>))
 import Data.Attoparsec.Internal
 import Data.Attoparsec.Internal.Compat
 import Data.Attoparsec.Internal.Fhthagn (inlinePerformIO)
-import Data.Attoparsec.Internal.Types hiding (Parser, Failure, Success)
+import Data.Attoparsec.Internal.Types hiding (DirParser, Parser, Failure, Success, DirFailure, DirSuccess)
 import Data.ByteString (ByteString)
 import Data.List (intercalate)
+import Data.Tagged (Tagged(..), untag)
+import Data.Tuple (swap)
 import Data.Word (Word8)
-import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.Ptr (castPtr, minusPtr, plusPtr)
+import qualified Foreign.ForeignPtr as FP
+import Foreign.Ptr (Ptr, castPtr)
+import qualified Foreign.Ptr as FP
 import Foreign.Storable (Storable(peek, sizeOf))
-import Prelude hiding (getChar, succ, take, takeWhile)
+import Prelude hiding (getChar, succ, take, takeWhile, span, drop, length)
 import qualified Data.Attoparsec.ByteString.Buffer as Buf
 import qualified Data.Attoparsec.Internal.Types as T
 import qualified Data.ByteString as B8
@@ -95,10 +102,93 @@ import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Unsafe as B
 
-type Parser = T.Parser ByteString
+type Parser  = T.Parser ByteString
+type DirParser d = T.DirParser d ByteString
+type BackParser = DirParser Backward
 type Result = IResult ByteString
-type Failure r = T.Failure ByteString Buffer r
-type Success a r = T.Success ByteString Buffer a r
+type DirFailure d r = T.DirFailure d ByteString Buffer r
+type DirSuccess d a r = T.DirSuccess d ByteString Buffer a r
+
+-- type Failure r = DirFailure Forward r
+-- type Success a r = DirSuccess Forward a r
+
+class IntLength a where
+  length :: a -> Int
+
+instance IntLength ByteString where
+  length = B.length
+
+instance IntLength a => IntLength (Tagged t a) where
+  length  = length . untag
+
+spanTag :: forall k (t :: k) a b c. (a -> (b, c)) -> Tagged t a -> (Tagged t b, Tagged t c)
+spanTag f (Tagged a) =
+  case f a of
+    (b, c) -> (Tagged b, Tagged c)
+
+withForeignPtr :: Tagged t (FP.ForeignPtr a) -> (Tagged t (Ptr a) -> IO b) -> IO b
+withForeignPtr fp f = FP.withForeignPtr (untag fp) (f . Tagged)
+
+untagA2 :: (Tagged t a -> Tagged t b -> Tagged t c) -> Tagged t a -> Tagged t b -> c
+untagA2 f a b = untag (f a b)
+
+class DirectedPlus d => Directed (d :: Dir) where
+  startPos :: ByteString -> DirPos d
+  isNotAll :: DirPos d -> Int -> Bool
+  substring :: DirPos d -> DirPos d -> Buffer -> Tagged d ByteString
+  lengthAtLeast :: DirPos d -> Int -> Buffer -> Bool
+  span :: (Word8 -> Bool) -> Tagged d ByteString -> (Tagged d ByteString, Tagged d ByteString)
+  uncons :: Tagged d ByteString -> Maybe (Word8, ByteString)
+  snoc :: Tagged d ByteString -> Word8 -> ByteString
+  takeWhileD :: (Word8 -> Bool) -> Tagged d ByteString -> ByteString
+  peekRest :: DirPos d -> Buffer -> Tagged d ByteString
+  isPrefixOf :: Tagged d ByteString -> Tagged d ByteString -> Bool
+  drop :: Int -> Tagged d ByteString -> Tagged d ByteString
+  unsafeTake :: Int -> Tagged d ByteString -> Tagged d ByteString
+  unsafeDrop :: Int -> Tagged d ByteString -> Tagged d ByteString
+  isNotAllPtr :: Tagged d (Ptr a) -> Tagged d (Ptr a) -> Bool
+  plusPtr :: Tagged d (Ptr a) -> Int -> Tagged d (Ptr a)
+  minusPtr :: Tagged d (Ptr a) -> Tagged d (Ptr a) -> Int
+
+instance Directed Forward where
+  startPos _ = Pos 0
+  isNotAll (Pos p) n = p < n
+  substring (Pos pos) (Pos n) = Tagged . Buf.substring pos n
+  {-# INLINE substring #-}
+  lengthAtLeast (Pos pos) n bs = Buf.length bs >= pos + n
+  {-# INLINE lengthAtLeast #-}
+  span f = spanTag (B8.span f)
+  uncons (Tagged bs) = B8.uncons bs
+  snoc (Tagged bs) = B8.snoc bs
+  takeWhileD p (Tagged bs) = B8.takeWhile p bs
+  peekRest (Pos d) =  Tagged . Buf.unsafeDrop d
+  isPrefixOf (Tagged pre) (Tagged bs) = B.isPrefixOf pre bs
+  drop n bs = B.drop n <$> bs
+  unsafeTake n bs = B.unsafeTake n <$> bs
+  unsafeDrop n bs = B.unsafeDrop n <$> bs
+  isNotAllPtr (Tagged a) (Tagged b) = a < b
+  plusPtr (Tagged fp) = Tagged . FP.plusPtr fp
+  minusPtr = untagA2 (liftA2 FP.minusPtr)
+
+instance Directed Backward where
+  startPos = Pos . (\x -> x - 1) . B.length
+  isNotAll a _ = a >= 0
+  substring (Pos pos) (Pos n) = Tagged . Buf.substring (pos - n) n
+  lengthAtLeast (Pos pos) n _bs = pos - n >= 0
+  span p = spanTag (B8.spanEnd p)
+  uncons (Tagged bs) = swap <$> B8.unsnoc bs
+  snoc (Tagged bs) b = B8.cons b bs
+  takeWhileD p (Tagged bs) = B8.takeWhileEnd p bs
+  peekRest (Pos d) = Tagged . Buf.substring 0 (d + 1)
+  isPrefixOf (Tagged pre) (Tagged bs) = B.isSuffixOf pre bs
+  drop n bs = B.dropEnd n <$> bs
+  -- unsafeTakeEnd
+  unsafeTake n bs = B.unsafeDrop (B.length (untag bs) - n) <$> bs
+  -- unsafeDropEnd
+  unsafeDrop n bs = B.unsafeTake (B.length (untag bs) - n) <$> bs
+  isNotAllPtr (Tagged a) (Tagged b) = a >= b
+  plusPtr (Tagged fp) off = Tagged (FP.plusPtr fp (-off))
+  minusPtr = untagA2 (liftA2 (flip FP.minusPtr))
 
 -- | The parser @satisfy p@ succeeds for any byte for which the
 -- predicate @p@ returns 'True'. Returns the byte that is actually
@@ -106,7 +196,7 @@ type Success a r = T.Success ByteString Buffer a r
 --
 -- >digit = satisfy isDigit
 -- >    where isDigit w = w >= 48 && w <= 57
-satisfy :: (Word8 -> Bool) -> Parser Word8
+satisfy :: Directed d => (Word8 -> Bool) -> DirParser d Word8
 satisfy p = do
   h <- peekWord8'
   if p h
@@ -119,7 +209,7 @@ satisfy p = do
 --
 -- >skipDigit = skip isDigit
 -- >    where isDigit w = w >= 48 && w <= 57
-skip :: (Word8 -> Bool) -> Parser ()
+skip :: forall d. Directed d => (Word8 -> Bool) -> DirParser d ()
 skip p = do
   h <- peekWord8'
   if p h
@@ -129,7 +219,7 @@ skip p = do
 -- | The parser @satisfyWith f p@ transforms a byte, and succeeds if
 -- the predicate @p@ returns 'True' on the transformed value. The
 -- parser returns the transformed byte that was parsed.
-satisfyWith :: (Word8 -> a) -> (a -> Bool) -> Parser a
+satisfyWith :: Directed d => (Word8 -> a) -> (a -> Bool) -> DirParser d a
 satisfyWith f p = do
   h <- peekWord8'
   let c = f h
@@ -138,17 +228,17 @@ satisfyWith f p = do
     else fail "satisfyWith"
 {-# INLINE satisfyWith #-}
 
-storable :: Storable a => Parser a
+storable :: (Directed d, Storable a) => DirParser d a
 storable = hack undefined
  where
-  hack :: Storable b => b -> Parser b
+  hack :: (Directed d, Storable b) => b -> DirParser d b
   hack dummy = do
     (fp,o,_) <- B.toForeignPtr `fmap` take (sizeOf dummy)
-    return . inlinePerformIO . withForeignPtr fp $ \p ->
-        peek (castPtr $ p `plusPtr` o)
+    return . inlinePerformIO . FP.withForeignPtr fp $ \p ->
+        peek (castPtr $ p `FP.plusPtr` o)
 
 -- | Consume exactly @n@ bytes of input.
-take :: Int -> Parser ByteString
+take :: Directed d => Int -> DirParser d ByteString
 take n0 = do
   let n = max n0 0
   s <- ensure n
@@ -170,8 +260,8 @@ take n0 = do
 -- partial match, and will consume the letters @\'f\'@ and @\'o\'@
 -- before failing.  In attoparsec, the above parser will /succeed/ on
 -- that input, because the failed first branch will consume nothing.
-string :: ByteString -> Parser ByteString
-string s = string_ (stringSuspended id) id s
+string :: Directed d => ByteString -> DirParser d ByteString
+string s = string_ (stringSuspended id) id (Tagged s)
 {-# INLINE string #-}
 
 -- ASCII-specific but fast, oh yes.
@@ -180,58 +270,63 @@ toLower w | w >= 65 && w <= 90 = w + 32
           | otherwise          = w
 
 -- | Satisfy a literal string, ignoring case.
-stringCI :: ByteString -> Parser ByteString
-stringCI s = string_ (stringSuspended lower) lower s
-  where lower = B8.map toLower
+stringCI :: Directed d => ByteString -> DirParser d ByteString
+stringCI s = string_ (stringSuspended lower) lower (Tagged s)
+  where lower = fmap (B8.map toLower)
 {-# INLINE stringCI #-}
 
-string_ :: (forall r. ByteString -> ByteString -> Buffer -> Pos -> More
-            -> Failure r -> Success ByteString r -> Result r)
-        -> (ByteString -> ByteString)
-        -> ByteString -> Parser ByteString
+string_ :: forall d. Directed d
+        => (forall r. Tagged d ByteString -> Tagged d ByteString -> Buffer -> DirPos d -> More
+            -> DirFailure d r -> DirSuccess d ByteString r -> Result r)
+        -> (Tagged d ByteString -> Tagged d ByteString)
+        -> Tagged d ByteString
+        -> DirParser d ByteString
 string_ suspended f s0 = T.Parser $ \t pos more lose succ ->
-  let n = B.length s
+  let n = B.length $ untag s
       s = f s0
   in if lengthAtLeast pos n t
      then let t' = substring pos (Pos n) t
           in if s == f t'
-             then succ t (pos + Pos n) more t'
+             then succ t (pos + (there (Pos n))) more (untag t')
              else lose t pos more [] "string"
-     else let t' = Buf.unsafeDrop (fromPos pos) t
-          in if f t' `B.isPrefixOf` s
-             then suspended s (B.drop (B.length t') s) t pos more lose succ
+     else let t' = peekRest pos t
+          in if f t' `isPrefixOf` s
+             then suspended s (drop (length t') s) t pos more lose succ
              else lose t pos more [] "string"
 {-# INLINE string_ #-}
 
-stringSuspended :: (ByteString -> ByteString)
-                -> ByteString -> ByteString -> Buffer -> Pos -> More
-                -> Failure r
-                -> Success ByteString r
+stringSuspended :: forall d r. Directed d
+                => (Tagged d ByteString -> Tagged d ByteString)
+                -> Tagged d ByteString
+                -> Tagged d ByteString
+                -> Buffer -> DirPos d -> More
+                -> DirFailure d r
+                -> DirSuccess d ByteString r
                 -> Result r
 stringSuspended f s0 s t pos more lose succ =
-    runParser (demandInput_ >>= go) t pos more lose succ
+    runParser (demandInput_ >>= go . Tagged) t pos more lose succ
   where go s'0   = T.Parser $ \t' pos' more' lose' succ' ->
-          let m  = B.length s
+          let m  = length s
               s' = f s'0
-              n  = B.length s'
+              n  = length s'
           in if n >= m
-             then if B.unsafeTake m s' == s
-                  then let o = Pos (B.length s0)
-                       in succ' t' (pos' + o) more'
-                          (substring pos' o t')
+             then if unsafeTake m s' == s
+                  then let o = Pos (length s0)
+                       in succ' t' (pos' + there o) more'
+                          (untag $ substring pos' o t')
                   else lose' t' pos' more' [] "string"
-             else if s' == B.unsafeTake n s
-                  then stringSuspended f s0 (B.unsafeDrop n s)
+             else if s' == unsafeTake n s
+                  then stringSuspended f s0 (unsafeDrop n s)
                        t' pos' more' lose' succ'
                   else lose' t' pos' more' [] "string"
 
 -- | Skip past input for as long as the predicate returns 'True'.
-skipWhile :: (Word8 -> Bool) -> Parser ()
+skipWhile :: Directed d => (Word8 -> Bool) -> DirParser d ()
 skipWhile p = go
  where
   go = do
-    t <- B8.takeWhile p <$> get
-    continue <- inputSpansChunks (B.length t)
+    t <- takeWhileD p <$> get
+    continue <- inputSpansChunks (length t)
     when continue go
 {-# INLINE skipWhile #-}
 
@@ -245,7 +340,7 @@ skipWhile p = go
 -- combinators such as 'Control.Applicative.many', because such
 -- parsers loop until a failure occurs.  Careless use will thus result
 -- in an infinite loop.
-takeTill :: (Word8 -> Bool) -> Parser ByteString
+takeTill :: Directed d => (Word8 -> Bool) -> DirParser d ByteString
 takeTill p = takeWhile (not . p)
 {-# INLINE takeTill #-}
 
@@ -259,20 +354,20 @@ takeTill p = takeWhile (not . p)
 -- combinators such as 'Control.Applicative.many', because such
 -- parsers loop until a failure occurs.  Careless use will thus result
 -- in an infinite loop.
-takeWhile :: (Word8 -> Bool) -> Parser ByteString
+takeWhile :: Directed d => (Word8 -> Bool) -> DirParser d ByteString
 takeWhile p = do
-    s <- B8.takeWhile p <$> get
+    s <- takeWhileD p <$> get
     continue <- inputSpansChunks (B.length s)
     if continue
       then takeWhileAcc p [s]
       else return s
 {-# INLINE takeWhile #-}
 
-takeWhileAcc :: (Word8 -> Bool) -> [ByteString] -> Parser ByteString
+takeWhileAcc :: forall d. Directed d => (Word8 -> Bool) -> [ByteString] -> DirParser d ByteString
 takeWhileAcc p = go
  where
   go acc = do
-    s <- B8.takeWhile p <$> get
+    s <- takeWhileD p <$> get
     continue <- inputSpansChunks (B.length s)
     if continue
       then go (s:acc)
@@ -283,87 +378,91 @@ takeWhileAcc p = go
 -- the consumed input.
 --
 -- This parser will consume at least one 'Word8' or fail.
-takeWhileIncluding :: (Word8 -> Bool) -> Parser B.ByteString
+takeWhileIncluding :: forall d. Directed d => (Word8 -> Bool) -> DirParser d B.ByteString
 takeWhileIncluding p = do
-  (s', t) <- B8.span p <$> get
-  case B8.uncons t of
+  (s', t) <- span p <$> get
+  case uncons t of
     -- Since we reached a break point and managed to get the next byte,
     -- input can not have been exhausted thus we succed and advance unconditionally.
     Just (h, _) -> do
-      let s = s' `B8.snoc` h
+      let s = s' `snoc` h
       advance (B8.length s)
       return s
     -- The above isn't true so either we ran out of input or we need to process the next chunk.
     Nothing -> do
-      continue <- inputSpansChunks (B8.length s')
+      continue <- inputSpansChunks (length s')
       if continue
         then takeWhileIncAcc p [s']
         -- Our spec says that if we run out of input we fail.
         else fail "takeWhileIncluding reached end of input"
 {-# INLINE takeWhileIncluding #-}
 
-takeWhileIncAcc :: (Word8 -> Bool) -> [B.ByteString] -> Parser B.ByteString
+takeWhileIncAcc :: forall d. Directed d
+                => (Word8 -> Bool)
+                -> [Tagged d B.ByteString]
+                -> DirParser d B.ByteString
 takeWhileIncAcc p = go
  where
    go acc = do
-     (s', t) <- B8.span p <$> get
-     case B8.uncons t of
+     (s', t) <- span p <$> get
+     case uncons t of
        Just (h, _) -> do
-         let s = s' `B8.snoc` h
+         let s = s' `snoc` h
          advance (B8.length s)
-         return (concatReverse $ s:acc)
+         return (concatReverse $ s : fmap untag acc)
        Nothing -> do
-         continue <- inputSpansChunks (B8.length s')
+         continue <- inputSpansChunks (length s')
          if continue
            then go (s':acc)
            else fail "takeWhileIncAcc reached end of input"
 {-# INLINE takeWhileIncAcc #-}
 
-takeRest :: Parser [ByteString]
+takeRest :: (Directed d, DirChunk d ByteString) => DirParser d [ByteString]
 takeRest = go []
  where
   go acc = do
     input <- wantInput
     if input
       then do
-        s <- get
+        s <- untag <$> get
         advance (B.length s)
         go (s:acc)
       else return (reverse acc)
 
 -- | Consume all remaining input and return it as a single string.
-takeByteString :: Parser ByteString
+takeByteString :: (Directed d, DirChunk d ByteString) => DirParser d ByteString
 takeByteString = B.concat `fmap` takeRest
 
 -- | Consume all remaining input and return it as a single string.
-takeLazyByteString :: Parser L.ByteString
+takeLazyByteString :: (Directed d, DirChunk d ByteString) => DirParser d L.ByteString
 takeLazyByteString = L.fromChunks `fmap` takeRest
 
 -- | Return the rest of the current chunk without consuming anything.
 --
 -- If the current chunk is empty, then ask for more input.
 -- If there is no more input, then return 'Nothing'
-getChunk :: Parser (Maybe ByteString)
+getChunk :: (Directed d, DirChunk d ByteString) => DirParser d (Maybe ByteString)
 getChunk = do
   input <- wantInput
   if input
-    then Just <$> get
+    then Just . untag <$> get
     else return Nothing
 
 data T s = T {-# UNPACK #-} !Int s
 
-scan_ :: (s -> [ByteString] -> Parser r) -> s -> (s -> Word8 -> Maybe s)
-         -> Parser r
+scan_ :: forall d s r. Directed d
+      => (s -> [ByteString] -> DirParser d r) -> s -> (s -> Word8 -> Maybe s)
+         -> DirParser d r
 scan_ f s0 p = go [] s0
  where
   go acc s1 = do
-    let scanner bs = withPS bs $ \fp off len ->
+    let scanner bs = withPsTag bs $ \fp off len ->
           withForeignPtr fp $ \ptr0 -> do
-            let start = ptr0 `plusPtr` off
+            let start = ptr0 `plusPtr` fromPos (there $ Pos @d off)
                 end   = start `plusPtr` len
                 inner ptr !s
-                  | ptr < end = do
-                    w <- peek ptr
+                  | isNotAllPtr ptr end = do
+                    w <- untag <$> mapM peek ptr
                     case p s w of
                       Just s' -> inner (ptr `plusPtr` 1) s'
                       _       -> done (ptr `minusPtr` start) s
@@ -372,11 +471,11 @@ scan_ f s0 p = go [] s0
             inner start s1
     bs <- get
     let T i s' = inlinePerformIO $ scanner bs
-        !h = B.unsafeTake i bs
+        !h = unsafeTake i bs
     continue <- inputSpansChunks i
     if continue
       then go (h:acc) s'
-      else f s' (h:acc)
+      else f s' $ fmap untag (h:acc)
 {-# INLINE scan_ #-}
 
 -- | A stateful scanner.  The predicate consumes and transforms a
@@ -391,13 +490,13 @@ scan_ f s0 p = go [] s0
 -- combinators such as 'Control.Applicative.many', because such
 -- parsers loop until a failure occurs.  Careless use will thus result
 -- in an infinite loop.
-scan :: s -> (s -> Word8 -> Maybe s) -> Parser ByteString
+scan :: Directed d => s -> (s -> Word8 -> Maybe s) -> DirParser d ByteString
 scan = scan_ $ \_ chunks -> return $! concatReverse chunks
 {-# INLINE scan #-}
 
 -- | Like 'scan', but generalized to return the final state of the
 -- scanner.
-runScanner :: s -> (s -> Word8 -> Maybe s) -> Parser (ByteString, s)
+runScanner :: Directed d => s -> (s -> Word8 -> Maybe s) -> DirParser d (ByteString, s)
 runScanner = scan_ $ \s xs -> let !sx = concatReverse xs in return (sx, s)
 {-# INLINE runScanner #-}
 
@@ -407,10 +506,10 @@ runScanner = scan_ $ \s xs -> let !sx = concatReverse xs in return (sx, s)
 -- This parser requires the predicate to succeed on at least one byte
 -- of input: it will fail if the predicate never returns 'True' or if
 -- there is no input left.
-takeWhile1 :: (Word8 -> Bool) -> Parser ByteString
+takeWhile1 :: Directed d => (Word8 -> Bool) -> DirParser d ByteString
 takeWhile1 p = do
   (`when` demandInput) =<< endOfChunk
-  s <- B8.takeWhile p <$> get
+  s <- takeWhileD p <$> get
   let len = B.length s
   if len == 0
     then fail "takeWhile1"
@@ -444,17 +543,17 @@ notInClass s = not . inClass s
 {-# INLINE notInClass #-}
 
 -- | Match any byte.
-anyWord8 :: Parser Word8
+anyWord8 :: Directed d => DirParser d Word8
 anyWord8 = satisfy $ const True
 {-# INLINE anyWord8 #-}
 
 -- | Match a specific byte.
-word8 :: Word8 -> Parser Word8
+word8 :: Directed d => Word8 -> DirParser d Word8
 word8 c = satisfy (== c) <?> show c
 {-# INLINE word8 #-}
 
 -- | Match any byte except the given one.
-notWord8 :: Word8 -> Parser Word8
+notWord8 :: Directed d => Word8 -> DirParser d Word8
 notWord8 c = satisfy (/= c) <?> "not " ++ show c
 {-# INLINE notWord8 #-}
 
@@ -465,10 +564,10 @@ notWord8 c = satisfy (/= c) <?> "not " ++ show c
 -- combinators such as 'Control.Applicative.many', because such
 -- parsers loop until a failure occurs.  Careless use will thus result
 -- in an infinite loop.
-peekWord8 :: Parser (Maybe Word8)
+peekWord8 :: Directed d => DirParser d (Maybe Word8)
 peekWord8 = T.Parser $ \t pos@(Pos pos_) more _lose succ ->
   case () of
-    _| pos_ < Buf.length t ->
+    _| isNotAll pos (Buf.length t) ->
        let !w = Buf.unsafeIndex t pos_
        in succ t pos more (Just w)
      | more == Complete ->
@@ -482,7 +581,7 @@ peekWord8 = T.Parser $ \t pos@(Pos pos_) more _lose succ ->
 
 -- | Match any byte, to perform lookahead.  Does not consume any
 -- input, but will fail if end of input has been reached.
-peekWord8' :: Parser Word8
+peekWord8' :: Directed d => DirParser d Word8
 peekWord8' = T.Parser $ \t pos more lose succ ->
     if lengthAtLeast pos 1 t
     then succ t pos more (Buf.unsafeIndex t (fromPos pos))
@@ -492,22 +591,22 @@ peekWord8' = T.Parser $ \t pos more lose succ ->
 
 -- | Match either a single newline character @\'\\n\'@, or a carriage
 -- return followed by a newline character @\"\\r\\n\"@.
-endOfLine :: Parser ()
+endOfLine :: Directed d => DirParser d ()
 endOfLine = (word8 10 >> return ()) <|> (string "\r\n" >> return ())
 
 -- | Terminal failure continuation.
-failK :: Failure a
-failK t (Pos pos) _more stack msg = Fail (Buf.unsafeDrop pos t) stack msg
+failK :: Directed d => DirFailure d a
+failK t pos _more stack msg = Fail (untag $ peekRest pos t) stack msg
 {-# INLINE failK #-}
 
 -- | Terminal success continuation.
-successK :: Success a a
-successK t (Pos pos) _more a = Done (Buf.unsafeDrop pos t) a
+successK :: Directed d => DirSuccess d a a
+successK t pos _more a = Done (untag $ peekRest pos t) a
 {-# INLINE successK #-}
 
 -- | Run a parser.
-parse :: Parser a -> ByteString -> Result a
-parse m s = T.runParser m (buffer s) (Pos 0) Incomplete failK successK
+parse :: Directed d => DirParser d a -> ByteString -> Result a
+parse m s = T.runParser m (buffer s) (startPos s) Incomplete failK successK
 {-# INLINE parse #-}
 
 -- | Run a parser that cannot be resupplied via a 'Partial' result.
@@ -519,72 +618,65 @@ parse m s = T.runParser m (buffer s) (Pos 0) Incomplete failK successK
 -- @
 --'parseOnly' (myParser 'Control.Applicative.<*' 'endOfInput')
 -- @
-parseOnly :: Parser a -> ByteString -> Either String a
-parseOnly m s = case T.runParser m (buffer s) (Pos 0) Complete failK successK of
+parseOnly :: Directed d => DirParser d a -> ByteString -> Either String a
+parseOnly m s = case T.runParser m (buffer s) (startPos s) Complete failK successK of
                   Fail _ [] err   -> Left err
                   Fail _ ctxs err -> Left (intercalate " > " ctxs ++ ": " ++ err)
                   Done _ a        -> Right a
                   _               -> error "parseOnly: impossible error!"
 {-# INLINE parseOnly #-}
 
-get :: Parser ByteString
+get :: Directed d => DirParser d (Tagged d ByteString)
 get = T.Parser $ \t pos more _lose succ ->
-  succ t pos more (Buf.unsafeDrop (fromPos pos) t)
+  succ t pos more (peekRest pos t)
 {-# INLINE get #-}
 
-endOfChunk :: Parser Bool
+endOfChunk :: Directed d => DirParser d Bool
 endOfChunk = T.Parser $ \t pos more _lose succ ->
-  succ t pos more (fromPos pos == Buf.length t)
+  succ t pos more (not (isNotAll pos (Buf.length t)))
 {-# INLINE endOfChunk #-}
 
-inputSpansChunks :: Int -> Parser Bool
+inputSpansChunks :: Directed d => Int -> DirParser d Bool
 inputSpansChunks i = T.Parser $ \t pos_ more _lose succ ->
-  let pos = pos_ + Pos i
-  in if fromPos pos < Buf.length t || more == Complete
+  let pos = pos_ + there (Pos i)
+  in if isNotAll pos (Buf.length t) || more == Complete
      then succ t pos more False
      else let lose' t' pos' more' = succ t' pos' more' False
               succ' t' pos' more' = succ t' pos' more' True
           in prompt t pos more lose' succ'
 {-# INLINE inputSpansChunks #-}
 
-advance :: Int -> Parser ()
+advance :: Directed d => Int -> DirParser d ()
 advance n = T.Parser $ \t pos more _lose succ ->
-  succ t (pos + Pos n) more ()
+  succ t (pos + there (Pos n)) more ()
 {-# INLINE advance #-}
 
-ensureSuspended :: Int -> Buffer -> Pos -> More
-                -> Failure r
-                -> Success ByteString r
+ensureSuspended :: Directed d
+                => Int -> Buffer -> DirPos d -> More
+                -> DirFailure d r
+                -> DirSuccess d ByteString r
                 -> Result r
 ensureSuspended n t pos more lose succ =
     runParser (demandInput >> go) t pos more lose succ
   where go = T.Parser $ \t' pos' more' lose' succ' ->
           if lengthAtLeast pos' n t'
-          then succ' t' pos' more' (substring pos (Pos n) t')
+          then succ' t' pos' more' (untag $ substring pos (Pos n) t')
           else runParser (demandInput >> go) t' pos' more' lose' succ'
 
 -- | If at least @n@ elements of input are available, return the
 -- current input, otherwise fail.
-ensure :: Int -> Parser ByteString
+ensure :: Directed d => Int -> DirParser d ByteString
 ensure n = T.Parser $ \t pos more lose succ ->
     if lengthAtLeast pos n t
-    then succ t pos more (substring pos (Pos n) t)
+    then succ t pos more (untag $ substring pos (Pos n) t)
     -- The uncommon case is kept out-of-line to reduce code size:
     else ensureSuspended n t pos more lose succ
 {-# INLINE ensure #-}
 
 -- | Return both the result of a parse and the portion of the input
 -- that was consumed while it was being parsed.
-match :: Parser a -> Parser (ByteString, a)
+match :: Directed d => DirParser d a -> DirParser d (ByteString, a)
 match p = T.Parser $ \t pos more lose succ ->
   let succ' t' pos' more' a =
-        succ t' pos' more' (substring pos (pos'-pos) t', a)
+        succ t' pos' more' (untag $ substring pos (there (pos'-pos)) t', a)
   in runParser p t pos more lose succ'
-
-lengthAtLeast :: Pos -> Int -> Buffer -> Bool
-lengthAtLeast (Pos pos) n bs = Buf.length bs >= pos + n
-{-# INLINE lengthAtLeast #-}
-
-substring :: Pos -> Pos -> Buffer -> ByteString
-substring (Pos pos) (Pos n) = Buf.substring pos n
-{-# INLINE substring #-}

@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns, CPP, ScopedTypeVariables, DataKinds #-}
 -- |
 -- Module      :  Data.Attoparsec.Internal
 -- Copyright   :  Bryan O'Sullivan 2007-2015
@@ -32,6 +32,7 @@ import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Prelude hiding (succ)
 
+
 -- | Compare two 'IResult' values for equality.
 --
 -- If both 'IResult's are 'Partial', the result will be 'Nothing', as
@@ -48,9 +49,9 @@ compareResults _ _ = Just False
 -- | Ask for input.  If we receive any, pass the augmented input to a
 -- success continuation, otherwise to a failure continuation.
 prompt :: Chunk t
-       => State t -> Pos -> More
-       -> (State t -> Pos -> More -> IResult t r)
-       -> (State t -> Pos -> More -> IResult t r)
+       => State t -> DirPos d -> More
+       -> (State t -> DirPos d -> More -> IResult t r)
+       -> (State t -> DirPos d -> More -> IResult t r)
        -> IResult t r
 prompt t pos _more lose succ = Partial $ \s ->
   if nullChunk s
@@ -69,7 +70,7 @@ prompt t pos _more lose succ = Partial $ \s ->
 
 -- | Immediately demand more input via a 'Partial' continuation
 -- result.
-demandInput :: Chunk t => Parser t ()
+demandInput :: Chunk t => DirParser d t ()
 demandInput = Parser $ \t pos more lose succ ->
   case more of
     Complete -> lose t pos more [] "not enough input"
@@ -81,7 +82,7 @@ demandInput = Parser $ \t pos more lose succ ->
 
 -- | Immediately demand more input via a 'Partial' continuation
 -- result.  Return the new input.
-demandInput_ :: Chunk t => Parser t t
+demandInput_ :: Chunk t => DirParser d t t
 demandInput_ = Parser $ \t pos more lose succ ->
   case more of
     Complete -> lose t pos more [] "not enough input"
@@ -95,7 +96,7 @@ demandInput_ = Parser $ \t pos more lose succ ->
 -- | This parser always succeeds.  It returns 'True' if any input is
 -- available either immediately or on demand, and 'False' if the end
 -- of all input has been reached.
-wantInput :: forall t . Chunk t => Parser t Bool
+wantInput :: forall t d . DirChunk d t => DirParser d t Bool
 wantInput = Parser $ \t pos more _lose succ ->
   case () of
     _ | pos < atBufferEnd (undefined :: t) t -> succ t pos more True
@@ -106,7 +107,7 @@ wantInput = Parser $ \t pos more _lose succ ->
 {-# INLINE wantInput #-}
 
 -- | Match only if all input has been consumed.
-endOfInput :: forall t . Chunk t => Parser t ()
+endOfInput :: forall t d. DirChunk d t => DirParser d t ()
 endOfInput = Parser $ \t pos more lose succ ->
   case () of
     _| pos < atBufferEnd (undefined :: t) t -> lose t pos more [] "endOfInput"
@@ -120,21 +121,21 @@ endOfInput = Parser $ \t pos more lose succ ->
 
 -- | Return an indication of whether the end of input has been
 -- reached.
-atEnd :: Chunk t => Parser t Bool
+atEnd :: DirChunk d t => DirParser d t Bool
 atEnd = not <$> wantInput
 {-# INLINE atEnd #-}
 
-satisfySuspended :: forall t r . Chunk t
-                 => (ChunkElem t -> Bool)
-                 -> State t -> Pos -> More
-                 -> Failure t (State t) r
-                 -> Success t (State t) (ChunkElem t) r
+satisfySuspended :: forall d t r . DirChunk d t
+                 => (DirChunkElem d t -> Bool)
+                 -> State t -> DirPos d -> More
+                 -> DirFailure d t (State t) r
+                 -> DirSuccess d t (State t) (DirChunkElem d t) r
                  -> IResult t r
 satisfySuspended p t pos more lose succ =
     runParser (demandInput >> go) t pos more lose succ
   where go = Parser $ \t' pos' more' lose' succ' ->
           case bufferElemAt (undefined :: t) pos' t' of
-            Just (e, l) | p e -> succ' t' (pos' + Pos l) more' e
+            Just (e, l) | p e -> succ' t' (pos' + (there (Pos l))) more' e
                         | otherwise -> lose' t' pos' more' [] "satisfyElem"
             Nothing -> runParser (demandInput >> go) t' pos' more' lose' succ'
 {-# SPECIALIZE satisfySuspended :: (ChunkElem ByteString -> Bool)
@@ -153,11 +154,11 @@ satisfySuspended p t pos more lose succ =
 -- | The parser @satisfyElem p@ succeeds for any chunk element for which the
 -- predicate @p@ returns 'True'. Returns the element that is
 -- actually parsed.
-satisfyElem :: forall t . Chunk t
-            => (ChunkElem t -> Bool) -> Parser t (ChunkElem t)
+satisfyElem :: forall t d. DirChunk d t
+            => (DirChunkElem d t -> Bool) -> DirParser d t (DirChunkElem d t)
 satisfyElem p = Parser $ \t pos more lose succ ->
     case bufferElemAt (undefined :: t) pos t of
-      Just (e, l) | p e -> succ t (pos + Pos l) more e
+      Just (e, l) | p e -> succ t (pos + (there (Pos l))) more e
                   | otherwise -> lose t pos more [] "satisfyElem"
       Nothing -> satisfySuspended p t pos more lose succ
 {-# INLINE satisfyElem #-}

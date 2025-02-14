@@ -13,8 +13,9 @@
 module Data.Attoparsec.Types
     (
       Parser
+    , DirParser
     , IResult(..)
     , Chunk(chunkElemToChar)
     ) where
 
-import Data.Attoparsec.Internal.Types (Parser(..), IResult(..), Chunk(..))
+import Data.Attoparsec.Internal.Types (Parser, DirParser(..), IResult(..), Chunk(..))
