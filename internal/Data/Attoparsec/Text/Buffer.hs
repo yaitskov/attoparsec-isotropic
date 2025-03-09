@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, CPP, MagicHash, RankNTypes, RecordWildCards,
-    UnboxedTuples #-}
+    UnboxedTuples, FlexibleInstances #-}
 
 -- |
 -- Module      :  Data.Attoparsec.Text.Buffer

@@ -1,4 +1,9 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 #if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Trustworthy #-} -- Imports internal modules
 #endif
@@ -30,6 +35,7 @@
 module Data.Attoparsec.ByteString.Lazy
     (
       Result(..)
+    , LbsParserCon
     , module Data.Attoparsec.ByteString
     -- * Running parsers
     , parse
@@ -38,6 +44,10 @@ module Data.Attoparsec.ByteString.Lazy
     , dirParse
     , dirParseOnly
     , dirParseTest
+    , parseBack
+    , parseOnlyBack
+    , parseTestBack
+
     -- ** Result conversion
     , maybeResult
     , eitherResult
@@ -46,12 +56,15 @@ module Data.Attoparsec.ByteString.Lazy
 import Control.DeepSeq (NFData(rnf))
 import Data.ByteString.Lazy.Internal (ByteString(..), chunk)
 import Data.List (intercalate)
+import Data.Tagged
 import qualified Data.ByteString as B
 import qualified Data.Attoparsec.ByteString as A
+import qualified Data.Attoparsec.ByteString.Internal as I
 import qualified Data.Attoparsec.Internal.Types as T
 import Data.Attoparsec.ByteString
     hiding (IResult(..), Result, eitherResult, maybeResult,
-            parse, parseOnly, parseWith, parseTest)
+            parse, parseOnly, parseWith, parseTest, dirParse, parseBack)
+import Debug.TraceEmbrace
 
 -- | The result of a parse.
 data Result r = Fail ByteString [String] String
@@ -87,11 +100,31 @@ fmapR f (Done bs r)       = Done bs (f r)
 instance Functor Result where
     fmap = fmapR
 
+class A.Directed d => LazyDirected d where
+  orderChunks :: Tagged d ByteString -> ByteString
+
+instance LazyDirected A.Forward where
+  orderChunks = untag
+
+instance LazyDirected A.Backward where
+  orderChunks = go Nothing . untag
+    where
+      go Nothing Empty = Empty
+      go (Just x) Empty = x
+      go Nothing (Chunk x xs) = go (Just (Chunk x Empty)) xs
+      go (Just p) (Chunk x xs) = go (Just (Chunk x p)) xs
+
+type LbsParserCon d =
+  ( I.BsParserCon d
+  , LazyDirected d
+  )
+
+
 -- | Run a parser and return its result.
-dirParse :: A.Directed d => A.DirParser d a -> ByteString -> Result a
-dirParse p s = case s of
-              Chunk x xs -> go (A.parse p x) xs
-              empty      -> go (A.parse p B.empty) empty
+dirParse :: forall a d. LbsParserCon d => A.DirParser d a -> ByteString -> Result a
+dirParse p s = case orderChunks $ Tagged @d s of
+              xxs@(Chunk x xs) -> go (A.dirParse p x) $ $(tr "/xxs") xs
+              empty      -> go (A.dirParse p B.empty) empty
   where
     go (T.Fail x stk msg) ys      = Fail (chunk x ys) stk msg
     go (T.Done x r) ys            = Done (chunk x ys) r
@@ -101,12 +134,18 @@ dirParse p s = case s of
 parse :: A.Parser a -> ByteString -> Result a
 parse = dirParse
 
+parseBack :: A.BackParser a -> ByteString -> Result a
+parseBack = dirParse
+
 -- | Run a parser and print its result to standard output.
-dirParseTest :: (Directed d, Show a) => A.DirParser d a -> ByteString -> IO ()
+dirParseTest :: (LbsParserCon d, Show a) => A.DirParser d a -> ByteString -> IO ()
 dirParseTest p s = print (dirParse p s)
 
 parseTest :: (Show a) => A.Parser a -> ByteString -> IO ()
 parseTest = dirParseTest
+
+parseTestBack :: (Show a) => A.BackParser a -> ByteString -> IO ()
+parseTestBack = dirParseTest
 
 -- | Convert a 'Result' value to a 'Maybe' value.
 maybeResult :: Result r -> Maybe r
@@ -128,10 +167,14 @@ eitherResult (Fail _ ctxs msg) = Left (intercalate " > " ctxs ++ ": " ++ msg)
 -- @
 --'parseOnly' (myParser 'Control.Applicative.<*' 'endOfInput')
 -- @
-dirParseOnly :: A.Directed d => A.DirParser d a -> ByteString -> Either String a
+dirParseOnly :: LbsParserCon d => A.DirParser d a -> ByteString -> Either String a
 dirParseOnly p = eitherResult . dirParse p
 {-# INLINE dirParseOnly #-}
 
 parseOnly :: A.Parser a -> ByteString -> Either String a
 parseOnly = dirParseOnly
 {-# INLINE parseOnly #-}
+
+parseOnlyBack :: A.BackParser a -> ByteString -> Either String a
+parseOnlyBack = dirParseOnly
+{-# INLINE parseOnlyBack #-}

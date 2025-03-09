@@ -1,4 +1,9 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE KindSignatures #-}
+
 -- |
 -- Module      :  Data.Attoparsec.ByteString.Buffer
 -- Copyright   :  Bryan O'Sullivan 2007-2015
@@ -44,9 +49,12 @@
 module Data.Attoparsec.ByteString.Buffer
     (
       Buffer
+    , DirBuffer
+    , Dir (..)
     , buffer
     , unbuffer
     , pappend
+    , pepreppend
     , length
     , unsafeIndex
     , substring
@@ -59,7 +67,9 @@ import Data.Attoparsec.Internal.Fhthagn (inlinePerformIO)
 import Data.Attoparsec.Internal.Compat
 import Data.List (foldl1')
 import Data.Monoid as Mon (Monoid(..))
+#if !MIN_VERSION_base(4,20,0)
 import Data.Semigroup (Semigroup(..))
+#endif
 import Data.Word (Word8)
 import Foreign.ForeignPtr (ForeignPtr, withForeignPtr)
 import Foreign.Marshal.Utils (copyBytes)
@@ -68,8 +78,10 @@ import Foreign.Storable (peek, peekByteOff, poke, sizeOf)
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import Prelude hiding (length)
 
+data Dir = Forward | Backward deriving (Eq, Show)
+
 -- If _cap is zero, this buffer is empty.
-data Buffer = Buf {
+data DirBuffer (d :: Dir) = Buf {
       _fp  :: {-# UNPACK #-} !(ForeignPtr Word8)
     , _off :: {-# UNPACK #-} !Int
     , _len :: {-# UNPACK #-} !Int
@@ -77,7 +89,9 @@ data Buffer = Buf {
     , _gen :: {-# UNPACK #-} !Int
     }
 
-instance Show Buffer where
+type Buffer = DirBuffer Forward
+
+instance Show (DirBuffer d) where
     showsPrec p = showsPrec p . unbuffer
 
 -- | The initial 'Buffer' has no mutable zone, so we can avoid all
@@ -86,19 +100,28 @@ instance Show Buffer where
 buffer :: ByteString -> Buffer
 buffer bs = withPS bs $ \fp off len -> Buf fp off len len 0
 
-unbuffer :: Buffer -> ByteString
+unbuffer :: DirBuffer d -> ByteString
 unbuffer (Buf fp off len _ _) = mkPS fp off len
 
-instance Semigroup Buffer where
+instance Semigroup (DirBuffer Forward) where
     (Buf _ _ _ 0 _) <> b                    = b
     a               <> (Buf _ _ _ 0 _)      = a
     buf             <> (Buf fp off len _ _) = append buf fp off len
 
-instance Monoid Buffer where
+instance Semigroup (DirBuffer Backward) where
+    (Buf _ _ _ 0 _) <> b                    = b
+    a               <> (Buf _ _ _ 0 _)      = a
+    buf             <> (Buf fp off len _ _) = preppend buf fp off len
+
+instance Monoid (DirBuffer Forward) where
     mempty = Buf nullForeignPtr 0 0 0 0
-
     mappend = (<>)
+    mconcat [] = Mon.mempty
+    mconcat xs = foldl1' mappend xs
 
+instance Monoid (DirBuffer Backward) where
+    mempty = Buf nullForeignPtr 0 0 0 0
+    mappend = (<>)
     mconcat [] = Mon.mempty
     mconcat xs = foldl1' mappend xs
 
@@ -135,23 +158,60 @@ append (Buf fp0 off0 len0 cap0 gen0) !fp1 !off1 !len1 =
                       (fromIntegral len1)
             return (Buf fp genSize newlen newcap newgen)
 
-length :: Buffer -> Int
+pepreppend :: DirBuffer Backward -> ByteString -> DirBuffer Backward
+pepreppend (Buf _ _ _ 0 _) bs  = buffer $ $(tw' "pepreppend zero cap") bs
+pepreppend buf@(Buf fp0 off0 len0 cap0 gen0) bs  =
+  withPS bs
+  $ \fp off len -> preppend buf fp off $
+                   $(tw "pepreppend with/fp0 off0 len0 cap0 gen0 bs fp off") len
+
+
+preppend :: DirBuffer Backward -> ForeignPtr a -> Int -> Int -> DirBuffer Backward
+preppend (Buf fp0 off0 len0 cap0 gen0) !fp1 !off1 !len1 =
+  inlinePerformIO . withForeignPtr fp0 $ \ptr0 ->
+    withForeignPtr fp1 $ \ptr1 -> do
+      let genSize = sizeOf (0::Int)
+          newlen  = len0 + len1
+      gen <- if gen0 == 0
+             then return 0
+             else peek (castPtr ptr0)
+      if gen == gen0 && newlen <= cap0
+        then do
+          let newgen = gen + 1
+          let newoff = off0 - len1
+          poke (castPtr ptr0) newgen
+          copyBytes (ptr0 `plusPtr` newoff)
+                    (ptr1 `plusPtr` off1)
+                    (fromIntegral len1)
+          return (Buf fp0 newoff newlen cap0 newgen)
+        else do
+          let newcap = newlen * 2
+          fp <- mallocPlainForeignPtrBytes (newcap + genSize)
+          withForeignPtr fp $ \ptr_ -> do
+            let ptr    = ptr_ `plusPtr` genSize
+                newgen = 1
+            poke (castPtr ptr_) newgen
+            copyBytes (ptr `plusPtr` (newcap - newlen)) (ptr1 `plusPtr` off1) (fromIntegral len1)
+            copyBytes (ptr `plusPtr` (newcap - len0)) (ptr0 `plusPtr` off0) (fromIntegral len0)
+            return (Buf fp (genSize + newcap - newlen) newlen newcap newgen)
+
+length :: DirBuffer d -> Int
 length (Buf _ _ len _ _) = len
 {-# INLINE length #-}
 
-unsafeIndex :: Buffer -> Int -> Word8
+unsafeIndex :: DirBuffer d -> Int -> Word8
 unsafeIndex (Buf fp off len _ _) i = assert (i >= 0 && i < len) .
     inlinePerformIO . withForeignPtr fp $ flip peekByteOff (off+i)
 {-# INLINE unsafeIndex #-}
 
-substring :: Int -> Int -> Buffer -> ByteString
+substring :: Int -> Int -> DirBuffer d -> ByteString
 substring s l (Buf fp off len _ _) =
   assert (s >= 0 && s <= len) .
   assert (l >= 0 && l <= len-s) $
   mkPS fp (off+s) l
 {-# INLINE substring #-}
 
-unsafeDrop :: Int -> Buffer -> ByteString
+unsafeDrop :: Int -> DirBuffer d -> ByteString
 unsafeDrop s (Buf fp off len _ _) =
   assert (s >= 0 && s <= len) $
   mkPS fp (off+s) (len-s)

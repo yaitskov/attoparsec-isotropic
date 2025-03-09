@@ -4,6 +4,8 @@ module QC.Common
     (
       ASCII(..)
     , parseBS
+    , parseBsBack
+    , parseLbsBack
     , parseT
     , toLazyBS
     , toStrictBS
@@ -25,6 +27,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
+import qualified Data.Attoparsec.ByteString as B
 import qualified Data.Attoparsec.ByteString.Lazy as BL
 import qualified Data.Attoparsec.Text.Lazy as TL
 
@@ -40,6 +43,12 @@ instance Arbitrary Word8 where
 
 parseBS :: BL.Parser r -> BL.ByteString -> Maybe r
 parseBS p = BL.maybeResult . BL.parse p
+
+parseBsBack :: BL.BackParser r -> B.ByteString -> Maybe r
+parseBsBack p = B.maybeResult . B.parseBack p
+
+parseLbsBack :: BL.BackParser r -> BL.ByteString -> Maybe r
+parseLbsBack p = BL.maybeResult . BL.parseBack p
 
 parseT :: TL.Parser r -> TL.Text -> Maybe r
 parseT p = TL.maybeResult . TL.parse p

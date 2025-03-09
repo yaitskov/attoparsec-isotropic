@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, ScopedTypeVariables, DataKinds #-}
+{-# LANGUAGE BangPatterns, CPP, ScopedTypeVariables, DataKinds, TypeApplications, FlexibleContexts, IncoherentInstances #-}
 -- |
 -- Module      :  Data.Attoparsec.Internal
 -- Copyright   :  Bryan O'Sullivan 2007-2015
@@ -13,6 +13,7 @@
 
 module Data.Attoparsec.Internal
     ( compareResults
+    , DirChunk
     , prompt
     , demandInput
     , demandInput_
@@ -29,9 +30,9 @@ import Data.Monoid (Monoid, mconcat)
 #endif
 import Data.Attoparsec.Internal.Types
 import Data.ByteString (ByteString)
+import Data.Tagged (Tagged(..))
 import Data.Text (Text)
 import Prelude hiding (succ)
-
 
 -- | Compare two 'IResult' values for equality.
 --
@@ -48,15 +49,20 @@ compareResults _ _ = Just False
 
 -- | Ask for input.  If we receive any, pass the augmented input to a
 -- success continuation, otherwise to a failure continuation.
-prompt :: Chunk t
-       => State t -> DirPos d -> More
-       -> (State t -> DirPos d -> More -> IResult t r)
-       -> (State t -> DirPos d -> More -> IResult t r)
+prompt :: forall t d r. DirChunk d t
+       => DirState d t -> DirPos d -> More
+       -> (DirState d t -> DirPos d -> More -> IResult t r)
+       -> (DirState d t -> DirPos d -> More -> IResult t r)
        -> IResult t r
 prompt t pos _more lose succ = Partial $ \s ->
   if nullChunk s
   then lose t pos Complete
-  else succ (pappendChunk t s) pos Incomplete
+  else
+    let
+      pos' = shiftPositionOnBufferExtend pos s
+      t' = $(tw "pappendChunk/pos pos'") $ pappendChunk t (Tagged @d s)
+    in
+      succ t' pos' Incomplete
 {-# SPECIALIZE prompt :: State ByteString -> Pos -> More
                       -> (State ByteString -> Pos -> More
                           -> IResult ByteString r)
@@ -70,7 +76,7 @@ prompt t pos _more lose succ = Partial $ \s ->
 
 -- | Immediately demand more input via a 'Partial' continuation
 -- result.
-demandInput :: Chunk t => DirParser d t ()
+demandInput :: DirChunk d t => DirParser d t ()
 demandInput = Parser $ \t pos more lose succ ->
   case more of
     Complete -> lose t pos more [] "not enough input"
@@ -82,14 +88,19 @@ demandInput = Parser $ \t pos more lose succ ->
 
 -- | Immediately demand more input via a 'Partial' continuation
 -- result.  Return the new input.
-demandInput_ :: Chunk t => DirParser d t t
+demandInput_ :: forall d t. DirChunk d t => DirParser d t t
 demandInput_ = Parser $ \t pos more lose succ ->
   case more of
     Complete -> lose t pos more [] "not enough input"
     _ -> Partial $ \s ->
          if nullChunk s
          then lose t pos Complete [] "not enough input"
-         else succ (pappendChunk t s) pos more s
+         else
+           let
+             t' = $(tw "pappendChunk/pos'") $ pappendChunk t (Tagged @d s)
+             pos' = shiftPositionOnBufferExtend pos s
+           in
+             succ t' pos' more s
 {-# SPECIALIZE demandInput_ :: Parser ByteString ByteString #-}
 {-# SPECIALIZE demandInput_ :: Parser Text Text #-}
 
@@ -99,7 +110,7 @@ demandInput_ = Parser $ \t pos more lose succ ->
 wantInput :: forall t d . DirChunk d t => DirParser d t Bool
 wantInput = Parser $ \t pos more _lose succ ->
   case () of
-    _ | pos < atBufferEnd (undefined :: t) t -> succ t pos more True
+    _ | notAtBufferEnd (undefined :: t) pos t -> succ t pos more True
       | more == Complete -> succ t pos more False
       | otherwise       -> let lose' t' pos' more' = succ t' pos' more' False
                                succ' t' pos' more' = succ t' pos' more' True
@@ -110,7 +121,7 @@ wantInput = Parser $ \t pos more _lose succ ->
 endOfInput :: forall t d. DirChunk d t => DirParser d t ()
 endOfInput = Parser $ \t pos more lose succ ->
   case () of
-    _| pos < atBufferEnd (undefined :: t) t -> lose t pos more [] "endOfInput"
+    _| notAtBufferEnd (undefined :: t) pos t -> lose t pos more [] "endOfInput"
      | more == Complete -> succ t pos more ()
      | otherwise ->
        let lose' t' pos' more' _ctx _msg = succ t' pos' more' ()
@@ -127,9 +138,9 @@ atEnd = not <$> wantInput
 
 satisfySuspended :: forall d t r . DirChunk d t
                  => (DirChunkElem d t -> Bool)
-                 -> State t -> DirPos d -> More
-                 -> DirFailure d t (State t) r
-                 -> DirSuccess d t (State t) (DirChunkElem d t) r
+                 -> DirState d t -> DirPos d -> More
+                 -> DirFailure d t (DirState d t) r
+                 -> DirSuccess d t (DirState d t) (DirChunkElem d t) r
                  -> IResult t r
 satisfySuspended p t pos more lose succ =
     runParser (demandInput >> go) t pos more lose succ
@@ -162,11 +173,3 @@ satisfyElem p = Parser $ \t pos more lose succ ->
                   | otherwise -> lose t pos more [] "satisfyElem"
       Nothing -> satisfySuspended p t pos more lose succ
 {-# INLINE satisfyElem #-}
-
--- | Concatenate a monoid after reversing its elements.  Used to
--- glue together a series of textual chunks that have been accumulated
--- \"backwards\".
-concatReverse :: Monoid m => [m] -> m
-concatReverse [x] = x
-concatReverse xs  = mconcat (reverse xs)
-{-# INLINE concatReverse #-}

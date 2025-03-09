@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 #if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Trustworthy #-}
 #endif
@@ -28,15 +29,20 @@ module Data.Attoparsec.ByteString
     -- * Parser types
       I.Parser
     , I.DirParser
+    , I.BackParser
     , I.Directed
+    , I.Dir(..)
     , Result
     , T.IResult(..)
     , I.compareResults
 
     -- * Running parsers
     , parse
+    , parseBack
+    , dirParse
     , feed
     , I.parseOnly
+    , I.parseBackOnly
     , parseWith
     , parseTest
 
@@ -77,6 +83,7 @@ module Data.Attoparsec.ByteString
     , I.takeLazyByteString
 
     -- * Combinators
+    , I.DirectedTuple ((>*<))
     , try
     , (<?>)
     , choice
@@ -105,7 +112,7 @@ import Data.List (intercalate)
 import qualified Data.Attoparsec.ByteString.Internal as I
 import qualified Data.Attoparsec.Internal as I
 import qualified Data.ByteString as B
-import Data.Attoparsec.ByteString.Internal (Result, parse)
+import Data.Attoparsec.ByteString.Internal (Result, parse, parseBack, dirParse)
 import qualified Data.Attoparsec.Internal.Types as T
 
 -- $parsec
@@ -200,17 +207,20 @@ import qualified Data.Attoparsec.Internal.Types as T
 -- find the problems with, and improve the performance of your parser.
 
 -- | Run a parser and print its result to standard output.
-parseTest :: (I.Directed d, Show a) => I.DirParser d a -> B.ByteString -> IO ()
-parseTest p s = print (parse p s)
+parseTest :: (Show a) => I.Parser a -> B.ByteString -> IO ()
+parseTest = dirParseTest
+
+dirParseTest :: (I.BsParserCon d, Show a) => I.DirParser d a -> B.ByteString -> IO ()
+dirParseTest p s = print (dirParse p s)
 
 -- | Run a parser with an initial input string, and a monadic action
 -- that can supply more input if needed.
-parseWith :: (I.Directed d, Monad m) =>
+parseWith :: (Monad m) =>
              (m B.ByteString)
           -- ^ An action that will be executed to provide the parser
           -- with more input, if necessary.  The action must return an
           -- 'B.empty' string when there is no more input available.
-          -> I.DirParser d a
+          -> I.Parser a
           -> B.ByteString
           -- ^ Initial input for the parser.
           -> m (Result a)

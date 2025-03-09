@@ -124,6 +124,7 @@ test-suite attoparsec-tests
   main-is:        QC.hs
   other-modules:  QC.Buffer
                   QC.ByteString
+                  QC.ByteStringRightToLeft
                   QC.Combinator
                   QC.Common
                   QC.IPv6.Internal

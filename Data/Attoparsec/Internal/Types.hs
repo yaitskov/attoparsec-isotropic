@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP, BangPatterns, GeneralizedNewtypeDeriving, OverloadedStrings,
     Rank2Types, RecordWildCards, TypeFamilies, DataKinds,
-    MultiParamTypeClasses #-}
+    MultiParamTypeClasses, FlexibleContexts #-}
 -- |
 -- Module      :  Data.Attoparsec.Internal.Types
 -- Copyright   :  Bryan O'Sullivan 2007-2015
@@ -18,6 +18,7 @@ module Data.Attoparsec.Internal.Types
       Parser
     , DirParser(..)
     , State
+    , DirState
     , Failure
     , Success
     , DirFailure
@@ -43,14 +44,14 @@ import Data.Word (Word8)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (w2c)
+import Data.Tagged (Tagged(..), untag)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Text.Unsafe (Iter(..))
 import Prelude hiding (succ)
+import Data.Attoparsec.ByteString.Buffer (Dir (..))
 import qualified Data.Attoparsec.ByteString.Buffer as B
 import qualified Data.Attoparsec.Text.Buffer as T
-
-data Dir = Forward | Backward deriving (Eq, Show)
 
 newtype DirPos (d :: Dir) = Pos { fromPos :: Int }
             deriving (Eq, Ord, Show, Num)
@@ -129,16 +130,19 @@ instance Functor (IResult i) where
 -- * 'Alternative', which follows 'MonadPlus'.
 newtype DirParser (d :: Dir) i a = Parser {
       runParser :: forall r.
-                   State i -> DirPos d -> More
-                -> DirFailure d i (State i)   r
-                -> DirSuccess d i (State i) a r
+                   DirState d i -> DirPos d -> More
+                -> DirFailure d i (DirState d i)   r
+                -> DirSuccess d i (DirState d i) a r
                 -> IResult i r
     }
 
 type Parser = DirParser Forward
-type family State i
-type instance State ByteString = B.Buffer
-type instance State Text = T.Buffer
+type family DirState (d :: Dir) i
+type instance DirState Forward ByteString = B.Buffer
+type instance DirState Backward ByteString = B.DirBuffer Backward
+type instance DirState Forward Text = T.Buffer
+
+type State x = DirState Forward x
 
 type DirFailure d i t   r =
   t -> DirPos d -> More -> [String] -> String -> IResult i r
@@ -250,60 +254,80 @@ class Monoid c => Chunk c where
   type ChunkElem c
   -- | Test if the chunk is empty.
   nullChunk :: c -> Bool
-  -- | Append chunk to a buffer.
-  pappendChunk :: State c -> c -> State c
   -- | Map an element to the corresponding character.
   --   The first argument is ignored.
   chunkElemToChar :: c -> ChunkElem c -> Char
-
-class (DirectedPlus d, Chunk c) => DirChunk (d :: Dir) c where
-  type DirChunkElem d c
-  -- | Position at the end of a buffer. The first argument is ignored.
-  atBufferEnd :: c -> State c -> DirPos d
-  -- | Return the buffer element at the given position along with its length.
-  bufferElemAt :: c -> DirPos d -> State c -> Maybe (DirChunkElem d c, Int)
 
 instance Chunk ByteString where
   type ChunkElem ByteString = Word8
   nullChunk = BS.null
   {-# INLINE nullChunk #-}
-  pappendChunk = B.pappend
-  {-# INLINE pappendChunk #-}
   chunkElemToChar _ = w2c
   {-# INLINE chunkElemToChar #-}
-
-instance DirChunk Forward ByteString where
-  type DirChunkElem Forward ByteString = Word8
-  atBufferEnd _ = Pos . B.length
-  {-# INLINE atBufferEnd #-}
-  bufferElemAt _ (Pos i) buf
-    | i < B.length buf = Just (B.unsafeIndex buf i, 1)
-    | otherwise = Nothing
-  {-# INLINE bufferElemAt #-}
-
-instance DirChunk Backward ByteString where
-  type DirChunkElem Backward ByteString = Word8
-  atBufferEnd _ = Pos . B.length
-  {-# INLINE atBufferEnd #-}
-  bufferElemAt _ (Pos i) buf
-    | i < B.length buf = Just (B.unsafeIndex buf i, 1)
-    | otherwise = Nothing
-  {-# INLINE bufferElemAt #-}
 
 instance Chunk Text where
   type ChunkElem Text = Char
   nullChunk = Text.null
   {-# INLINE nullChunk #-}
-  pappendChunk = T.pappend
-  {-# INLINE pappendChunk #-}
   chunkElemToChar _ = id
   {-# INLINE chunkElemToChar #-}
 
+
+class (DirectedPlus d, Chunk c, Show (DirState d c)) => DirChunk (d :: Dir) c where
+  type DirChunkElem d c
+  -- | Position at the end of a buffer. The first argument is ignored.
+  notAtBufferEnd :: c -> DirPos d -> DirState d c -> Bool
+  -- | Return the buffer element at the given position along with its length.
+  bufferElemAt :: c -> DirPos d -> DirState d c -> Maybe (DirChunkElem d c, Int)
+  shiftPositionOnBufferExtend :: DirPos d -> c -> DirPos d
+  -- | Append chunk to a buffer.
+  pappendChunk :: DirState d c -> Tagged d c -> DirState d c
+  concatReverse :: [Tagged d c] -> Tagged d c
+
+instance DirChunk Forward ByteString where
+  type DirChunkElem Forward ByteString = Word8
+  notAtBufferEnd _ (Pos p) t = p < B.length t
+  {-# INLINE notAtBufferEnd #-}
+  bufferElemAt _ (Pos i) buf
+    | i < B.length buf = Just (B.unsafeIndex buf i, 1)
+    | otherwise = Nothing
+  {-# INLINE bufferElemAt #-}
+  shiftPositionOnBufferExtend a _ = a
+  {-# INLINE shiftPositionOnBufferExtend #-}
+  pappendChunk buf t = B.pappend buf (untag t)
+  {-# INLINE pappendChunk #-}
+  concatReverse [x] = x
+  concatReverse xs = mconcat (reverse xs)
+  {-# INLINE concatReverse #-}
+
+instance DirChunk Backward ByteString where
+  type DirChunkElem Backward ByteString = Word8
+  notAtBufferEnd _ p t = p >= 0 && B.length t > 0
+  {-# INLINE notAtBufferEnd #-}
+  bufferElemAt _ (Pos i) buf
+    | i >= 0 = Just (B.unsafeIndex buf i, 1)
+    | otherwise = Nothing
+  {-# INLINE bufferElemAt #-}
+  shiftPositionOnBufferExtend a s = a + Pos (BS.length s)
+  {-# INLINE shiftPositionOnBufferExtend #-}
+  pappendChunk buf t = B.pepreppend buf (untag t)
+  {-# INLINE pappendChunk #-}
+  concatReverse [x] = x
+  concatReverse xs = mconcat xs
+  {-# INLINE concatReverse #-}
+
 instance DirChunk Forward Text where
   type DirChunkElem Forward Text = Char
-  atBufferEnd _ = Pos . T.length
-  {-# INLINE atBufferEnd #-}
+  notAtBufferEnd _ (Pos p) t = p < T.length t
+  {-# INLINE notAtBufferEnd #-}
   bufferElemAt _ (Pos i) buf
     | i < T.length buf = let Iter c l = T.iter buf i in Just (c, l)
     | otherwise = Nothing
   {-# INLINE bufferElemAt #-}
+  shiftPositionOnBufferExtend a _ = a
+  {-# INLINE shiftPositionOnBufferExtend #-}
+  pappendChunk buf t = T.pappend buf (untag t)
+  {-# INLINE pappendChunk #-}
+  concatReverse [x] = x
+  concatReverse xs = mconcat (reverse xs)
+  {-# INLINE concatReverse #-}

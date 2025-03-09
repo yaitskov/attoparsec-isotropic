@@ -3,6 +3,7 @@ module Main (main) where
 
 import qualified QC.Buffer as Buffer
 import qualified QC.ByteString as ByteString
+import qualified QC.ByteStringRightToLeft as ByteStringRightToLeft
 import qualified QC.Combinator as Combinator
 import qualified QC.Simple as Simple
 import qualified QC.Text as Text
@@ -12,6 +13,7 @@ main = defaultMain tests
 
 tests = testGroup "tests" [
     testGroup "bs" ByteString.tests
+  , testGroup "bs right to left" ByteStringRightToLeft.tests
   , testGroup "buf" Buffer.tests
   , testGroup "combinator" Combinator.tests
   , testGroup "simple" Simple.tests

@@ -43,7 +43,7 @@ module Data.Attoparsec.Combinator
 import Control.Applicative (Applicative(..), (<$>))
 import Data.Monoid (Monoid(mappend))
 #endif
-import Control.Applicative (Alternative(..), liftA2, many, (<|>))
+import Control.Applicative (Alternative(..), many, (<|>))
 import Control.Monad (MonadPlus(..))
 import Data.Attoparsec.Internal.Types (DirParser(..), Parser, IResult(..))
 import Data.Attoparsec.Internal (endOfInput, atEnd, satisfyElem)

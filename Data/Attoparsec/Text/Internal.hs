@@ -68,8 +68,8 @@ module Data.Attoparsec.Text.Internal
 import Control.Applicative ((<|>))
 import Control.Monad (when)
 import Data.Attoparsec.Combinator ((<?>))
-import Data.Attoparsec.Internal
-import Data.Attoparsec.Internal.Types hiding (Parser, Failure, Success)
+import Data.Attoparsec.Internal hiding (concatReverse)
+import Data.Attoparsec.Internal.Types hiding (Parser, Failure, Success, concatReverse)
 import qualified Data.Attoparsec.Text.Buffer as Buf
 import Data.Attoparsec.Text.Buffer (Buffer, buffer)
 import Data.Char (isAsciiUpper, isAsciiLower, toUpper, toLower)
@@ -90,6 +90,14 @@ type Success a r = T.Success Text Buffer a r
 
 instance (a ~ Text) => IsString (Parser a) where
     fromString = string . T.pack
+
+-- | Concatenate a monoid after reversing its elements.  Used to
+-- glue together a series of textual chunks that have been accumulated
+-- \"backwards\".
+concatReverse :: Monoid m => [m] -> m
+concatReverse [x] = x
+concatReverse xs  = mconcat (reverse xs)
+{-# INLINE concatReverse #-}
 
 -- | The parser @satisfy p@ succeeds for any character for which the
 -- predicate @p@ returns 'True'. Returns the character that is

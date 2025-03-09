@@ -7,7 +7,7 @@ module QC.Simple (
 
 import Control.Applicative ((<|>))
 import Data.ByteString (ByteString)
-import Data.List (foldl')
+
 import Data.Maybe (fromMaybe)
 import QC.Rechunked (rechunkBS)
 import Test.Tasty (TestTree)

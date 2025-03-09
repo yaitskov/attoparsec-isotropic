@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, CPP, FlexibleInstances, TypeFamilies,
-    TypeSynonymInstances, GADTs #-}
+    TypeSynonymInstances, GADTs, ConstraintKinds, FlexibleContexts #-}
 #if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Trustworthy #-} -- Imports internal modules
 #endif
@@ -136,7 +136,7 @@ import Data.Word (Word)
 import Control.Applicative ((<|>))
 import Control.Monad (void, when)
 import Data.Attoparsec.ByteString.FastSet (charClass, memberChar)
-import Data.Attoparsec.ByteString.Internal (DirParser, Parser, BackParser, Directed)
+import Data.Attoparsec.ByteString.Internal (DirParser, Parser, BackParser)
 import Data.Attoparsec.Combinator
 import Data.Attoparsec.Number (Number(..))
 import Data.Bits (Bits, (.|.), shiftL)
@@ -152,6 +152,8 @@ import qualified Data.Attoparsec.ByteString.Internal as I
 import qualified Data.Attoparsec.Internal as I
 import qualified Data.ByteString as B8
 import qualified Data.ByteString.Char8 as B
+
+type Directed d = (I.Directed d, I.BsParserCon d, I.DirChunk d B.ByteString)
 
 instance (Directed d, a ~ B.ByteString) => IsString (DirParser d a) where
     fromString = I.string . B.pack
