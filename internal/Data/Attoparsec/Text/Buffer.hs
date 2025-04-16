@@ -54,6 +54,7 @@ import Data.Text.Internal.Unsafe.Char (unsafeChr)
 import Data.Text.Unsafe (lengthWord16)
 #endif
 import Data.Text.Unsafe (Iter(..))
+import Debug.TraceEmbrace
 import Foreign.Storable (sizeOf)
 import GHC.Exts (Int(..), indexIntArray#, unsafeCoerce#, writeIntArray#)
 import GHC.ST (ST(..), runST)
@@ -71,6 +72,11 @@ data Buffer = Buf {
 
 instance Show Buffer where
     showsPrec p = showsPrec p . unbuffer
+
+instance Show (ShowTrace Buffer) where
+  show (ShowTrace (Buf arr off0 len0 cap0 gen0)) =
+    "Buf -> arr: " <> show arr <> "; off0: " <> show off0 <> "; len0: " <> show len0 <> "; cap0: "
+        <> show cap0 <> "; gen0: " <> show gen0
 
 -- | The initial 'Buffer' has no mutable zone, so we can avoid all
 -- copies in the (hopefully) common case of no further input being fed

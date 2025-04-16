@@ -21,6 +21,7 @@ module Data.Attoparsec.ByteString.Internal
     , DirParser
     , Directed
     , Dir (..)
+    , Buf.DefaultDrift (..)
     , Result
     , BsParserCon
 
@@ -72,6 +73,8 @@ module Data.Attoparsec.ByteString.Internal
 
     -- * Monoidal combinator
     , DirectedTuple(..)
+    , (>*)
+    , (*<)
     -- * Utilities
     , endOfLine
     , endOfInput
@@ -82,9 +85,9 @@ module Data.Attoparsec.ByteString.Internal
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative ((<$>))
 #endif
-import Control.Applicative ((<|>))
+import Control.Applicative (Alternative ((<|>)))
 import Control.Monad (when)
-import Data.Attoparsec.ByteString.Buffer (DirBuffer, buffer)
+import Data.Attoparsec.ByteString.Buffer (DirBuffer, buffer', DefaultDrift (..))
 import Data.Attoparsec.ByteString.FastSet (charClass, memberWord8)
 import Data.Attoparsec.Combinator ((<?>))
 import Data.Attoparsec.Internal
@@ -110,6 +113,7 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Unsafe as B
+import Data.Proxy
 
 type Parser  = T.Parser ByteString
 type DirParser d = T.DirParser d ByteString
@@ -137,6 +141,11 @@ withForeignPtr :: Tagged t (FP.ForeignPtr a) -> (Tagged t (Ptr a) -> IO b) -> IO
 withForeignPtr fp f = FP.withForeignPtr (untag fp) (f . Tagged)
 
 class DirectedPlus d => Directed (d :: Dir) where
+  diffLen ::
+    DirPos d -> -- ^ new position
+    DirPos d -> -- ^ origin position
+    DirPos d
+  -- zero :: DirBuffer d -> DirPos d
   startPos :: ByteString -> DirPos d
   isNotAll :: DirPos d -> Int -> Bool
   substring :: DirPos d -> DirPos d -> DirBuffer d -> Tagged d ByteString
@@ -154,6 +163,8 @@ class DirectedPlus d => Directed (d :: Dir) where
   scanner :: s -> Tagged d ByteString -> (s -> Word8 -> Maybe s) -> IO (T s)
 
 instance Directed Forward where
+  diffLen np op = np - op
+  -- zero _ = 0
   startPos _ = Pos 0
   isNotAll (Pos p) n = p < n
   substring (Pos pos) (Pos n) = Tagged . Buf.substring pos n
@@ -186,6 +197,8 @@ instance Directed Forward where
         inner start s1
 
 instance Directed Backward where
+  diffLen np op = op - np
+  -- zero _ = 1
   startPos = Pos . (\x -> x - 1) . B.length
   isNotAll a n = a >= 0 && n > 0
   substring (Pos pos) (Pos n) b =
@@ -197,7 +210,7 @@ instance Directed Backward where
   snoc (Tagged bs) b = B8.cons b bs
   takeWhileD p bs = B8.takeWhileEnd p <$> bs
   peekRest (Pos d) b =
-    (Tagged (Buf.substring 0 (d + 1) b))
+    $(tw "/d b") (Tagged (Buf.substring 0 (d + 1) b))
   isPrefixOf (Tagged pre) (Tagged bs) = B.isSuffixOf pre bs
   drop n bs = B.dropEnd n <$> bs
   -- unsafeTakeEnd
@@ -236,10 +249,20 @@ instance DirectedTuple Forward where
 instance DirectedTuple Backward where
   a >*< b = b >>= \br -> a >>= \ar -> pure (ar, br)
 
+(>*) :: DirectedTuple d => DirParser d a -> DirParser d b -> DirParser d b
+a >* b = snd <$> (a >*< b)
+infixl 4 >*
+
+(*<) :: DirectedTuple d => DirParser d a -> DirParser d b -> DirParser d a
+a *< b = fst <$> (a >*< b)
+infixl 4 *<
+
 type BsParserCon d =
   ( DirChunk d ByteString
   , Directed d
   , DirBuffer d ~ DirState d ByteString
+  , Buf.HasDrift d
+  , Alternative (DirParser d)
   )
 
 -- | The parser @satisfy p@ succeeds for any byte for which the
@@ -251,8 +274,8 @@ type BsParserCon d =
 satisfy :: BsParserCon d => (Word8 -> Bool) -> DirParser d Word8
 satisfy p = do
   h <- peekWord8'
-  if p h
-    then advance 1 >> return h
+  if $(tw "pokedWord/h") $ p h
+    then advance ($(tw "advance by/") 1)  >> return h
     else fail "satisfy"
 {-# INLINE satisfy #-}
 
@@ -264,18 +287,18 @@ satisfy p = do
 skip :: BsParserCon d => (Word8 -> Bool) -> DirParser d ()
 skip p = do
   h <- peekWord8'
-  if p h
-    then advance 1
+  if $(tw "pokedWord/h") $ p h
+    then advance $ $(tw "advance by/") 1
     else fail "skip"
 
 -- | The parser @satisfyWith f p@ transforms a byte, and succeeds if
 -- the predicate @p@ returns 'True' on the transformed value. The
 -- parser returns the transformed byte that was parsed.
-satisfyWith :: BsParserCon d => (Word8 -> a) -> (a -> Bool) -> DirParser d a
+satisfyWith :: (Show a, BsParserCon d) => (Word8 -> a) -> (a -> Bool) -> DirParser d a
 satisfyWith f p = do
   h <- peekWord8'
   let c = f h
-  if p c
+  if $(tw "p c ret/h c") $ p c
     then advance 1 >> return c
     else fail "satisfyWith"
 {-# INLINE satisfyWith #-}
@@ -294,7 +317,7 @@ take :: BsParserCon d => Int -> DirParser d ByteString
 take n0 = do
   let n = max n0 0
   s <- ensure n
-  advance n >> return s
+  advance ($(tw "/n0 n") n)  >> return s
 {-# INLINE take #-}
 
 -- | @string s@ parses a sequence of bytes that identically match
@@ -336,7 +359,7 @@ string_ :: forall (d :: Dir). BsParserCon d
 string_ suspended f s0 = T.Parser $ \t pos more lose succ ->
   let n = B.length $ untag s
       s = f s0
-  in if lengthAtLeast pos n t
+  in if $(tw "/pos n s t") $ lengthAtLeast pos n t
      then let t' = substring pos (Pos n) t
           in if s == f t'
              then succ t (pos + (there (Pos n))) more (untag t')
@@ -361,7 +384,7 @@ stringSuspended f s0 s t pos more lose succ =
           let m  = length s
               s' = f s'0
               n  = length s'
-          in if n >= m
+          in if $(tw "/t t' pos pos' s' n m ") $ n >= m
              then if unsafeTake m s' == s
                   then let o = Pos (length s0)
                        in succ' t' (pos' + there o) more'
@@ -377,8 +400,8 @@ skipWhile :: BsParserCon d => (Word8 -> Bool) -> DirParser d ()
 skipWhile p = go
  where
   go = do
-    t <- takeWhileD p <$> get
-    continue <- inputSpansChunks (length $ untag t)
+    t <- $(tw "tookWhileD/") . takeWhileD p <$> get
+    continue <- $(tw "continue/") <$> inputSpansChunks (length $ untag t)
     when continue go
 {-# INLINE skipWhile #-}
 
@@ -424,7 +447,7 @@ takeWhileAcc p = go
   go acc = do
     s <- takeWhileD p <$> get
     continue <- inputSpansChunks (B.length $ untag s)
-    if continue
+    if $(tw "continue/s acc") continue
       then go (s:acc)
       else pure . untag $ concatReverse (s:acc)
 {-# INLINE takeWhileAcc #-}
@@ -441,7 +464,7 @@ takeWhileIncluding p = do
     -- input can not have been exhausted thus we succed and advance unconditionally.
     Just (h, _) -> do
       let s = s' `snoc` h
-      advance (B8.length s)
+      advance $ $(tw "by len/s") (B8.length s)
       return s
     -- The above isn't true so either we ran out of input or we need to process the next chunk.
     Nothing -> do
@@ -463,7 +486,7 @@ takeWhileIncAcc p = go
      case uncons t of
        Just (h, _) -> do
          let s = s' `snoc` h
-         advance (B8.length s)
+         advance $ $(tw "by len /s") (B8.length s)
          return $ untag (concatReverse $ (Tagged s) : acc)
        Nothing -> do
          continue <- inputSpansChunks (length s')
@@ -475,14 +498,14 @@ takeWhileIncAcc p = go
 
 
 takeRest :: BsParserCon d => DirParser d [Tagged d ByteString]
-takeRest = $(tw "") <$> go []
+takeRest = $(tw "/") <$> go []
   where
   go acc = do
     input <- wantInput
     if input
       then do
         s <- get
-        advance (length s)
+        advance $ $(tw "by len/s") (length s)
         go (s:acc)
       else return (reverse acc)
 
@@ -560,12 +583,12 @@ takeWhile1 p = do
   (`when` demandInput) =<< endOfChunk
   s <- takeWhileD p <$> get
   let len = B.length $ untag s
-  if len == 0
+  if $(tw "/s len") $ len == 0
     then fail "takeWhile1"
     else do
-      advance len
+      advance $ $(tw "by/len") len
       eoc <- endOfChunk
-      if eoc
+      if $(tw "eoc/") eoc
         then takeWhileAcc p [s]
         else return $ untag s
 {-# INLINE takeWhile1 #-}
@@ -654,8 +677,13 @@ successK t pos _more a = Done (untag $ peekRest pos t) a
 {-# INLINE successK #-}
 
 -- | Run a parser.
-dirParse :: BsParserCon d => DirParser d a -> ByteString -> Result a
-dirParse m s = T.runParser m (buffer s) ($(tw "dirParse startPos/") $ startPos s) Incomplete failK successK
+dirParse ::
+  forall d a. (Buf.DefaultDrift d, BsParserCon d) =>
+  DirParser d a -> ByteString -> Result a
+dirParse m s = T.runParser m b sp Incomplete failK successK
+  where
+    sp = $(tw "dirParse startPos/s") $ startPos s
+    b = buffer' (initDrift (Proxy @d)) s
 {-# INLINE dirParse #-}
 
 parse :: Parser a -> ByteString -> Result a
@@ -666,12 +694,17 @@ parseBack :: BackParser a -> ByteString -> Result a
 parseBack = dirParse
 {-# INLINE parseBack #-}
 
-dirParseOnly :: BsParserCon d => DirParser d a -> ByteString -> Either String a
-dirParseOnly m s = case T.runParser m (buffer s) (startPos s) Complete failK successK of
+dirParseOnly ::
+  forall d a. (Buf.DefaultDrift d, BsParserCon d) =>
+  DirParser d a -> ByteString -> Either String a
+dirParseOnly m s =
+  case T.runParser m b (startPos s) Complete failK successK of
                   Fail _ [] err   -> Left err
                   Fail _ ctxs err -> Left (intercalate " > " ctxs ++ ": " ++ err)
                   Done _ a        -> Right a
                   _               -> error "parseOnly: impossible error!"
+  where
+    b = buffer' (initDrift (Proxy @d)) s
 {-# INLINE dirParseOnly #-}
 
 -- | Run a parser that cannot be resupplied via a 'Partial' result.
@@ -693,18 +726,19 @@ parseBackOnly = dirParseOnly
 
 get :: BsParserCon d => DirParser d (Tagged d ByteString)
 get = T.Parser $ \t pos more _lose succ ->
-  succ t pos more (peekRest ($(tw "from position") pos) t)
+  let drift = Buf.getDrift t
+  in succ t pos more (peekRest ($(tw "from position/t drift") pos) t)
 {-# INLINE get #-}
 
 endOfChunk :: BsParserCon d => DirParser d Bool
 endOfChunk = T.Parser $ \t pos more _lose succ ->
-  succ t pos more (not (isNotAll pos (Buf.length t)))
+  succ t pos more $ $(tw "for/pos t") (not (isNotAll pos (Buf.length t)))
 {-# INLINE endOfChunk #-}
 
 inputSpansChunks :: BsParserCon d => Int -> DirParser d Bool
 inputSpansChunks i = T.Parser $ \t pos_ more _lose succ ->
   let pos = pos_ + there (Pos i)
-  in if isNotAll pos (Buf.length t) || more == Complete
+  in if $(tw "/more pos pos_ i t") (isNotAll pos (Buf.length t) || more == Complete)
      then succ t pos more False
      else let lose' t' pos' more' = succ t' pos' more' False
               succ' t' pos' more' = succ t' pos' more' True
@@ -713,7 +747,7 @@ inputSpansChunks i = T.Parser $ \t pos_ more _lose succ ->
 
 advance :: BsParserCon d => Int -> DirParser d ()
 advance n = T.Parser $ \t pos more _lose succ ->
-  succ t (pos + $(tw "ret by/pos") (there (Pos n))) more ()
+  succ t (pos + $(tw "ret by/more pos n t") (there (Pos n))) more ()
 {-# INLINE advance #-}
 
 ensureSuspended :: BsParserCon d
@@ -742,6 +776,17 @@ ensure n = T.Parser $ \t pos more lose succ ->
 -- that was consumed while it was being parsed.
 match :: BsParserCon d => DirParser d a -> DirParser d (ByteString, a)
 match p = T.Parser $ \t pos more lose succ ->
-  let succ' t' pos' more' a =
-        succ t' pos' more' (untag $ substring pos (there (pos'-pos)) t', a)
+  let drift = Buf.getDrift t
+      succ' t' pos' more' a =
+        let drift' = Buf.getDrift t'
+            dd = Pos $ drift' - drift
+            posD = diffLen pos' pos
+         in
+        --   pos' = -1 pos = 0 => 0 - (-1) => n = 1
+        --       (Tagged (Buf.substring (pos + 1 - n) n b))
+          succ t' pos' more'
+          ( untag $ substring (pos + dd) (dd + posD) $
+            $(tr "/drift drift' pos pos' t t' dd posD") t'
+          , a
+          )
   in runParser p t pos more lose succ'

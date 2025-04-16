@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, OverloadedStrings #-}
+{-# LANGUAGE CPP, OverloadedStrings, TemplateHaskell #-}
 
 module QC.Combinator where
 
@@ -15,6 +15,7 @@ import qualified Data.Attoparsec.ByteString.Char8 as P
 import qualified Data.Attoparsec.Combinator as C
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
+import Debug.TraceEmbrace
 
 choice :: NonEmptyList (NonEmptyList Word8) -> Gen Property
 choice (NonEmpty xs) = do
@@ -36,7 +37,10 @@ lookAhead (NonEmpty xs) =
 
 match :: Int -> NonNegative Int -> NonNegative Int -> Repack -> Bool
 match n (NonNegative x) (NonNegative y) rs =
-    parseBS (P.match parser) (repackBS rs input) == Just (input, n)
+      $(tw "parsed") (parseBS (P.match parser)
+      ($(tw' "repacked") (repackBS rs input))) ==
+        Just ($(tw' "input") input, n)
+
   where parser = P.skipWhile (=='x') *> P.signed P.decimal <*
                  P.skipWhile (=='y')
         input = B.concat [

@@ -1,23 +1,8 @@
-# Welcome to attoparsec
+# Welcome to attoparsec-monoidal
 
-attoparsec is a fast Haskell parser combinator library, aimed
-particularly at dealing efficiently with network protocols and
-complicated text/binary file formats.
-
-# Join in!
-
-I'm happy to receive bug reports, fixes, documentation enhancements,
-and other improvements.
-
-Please report bugs via the
-[github issue tracker](https://github.com/haskell/attoparsec/issues).
-
-Master [git repository](https://github.com/haskell/attoparsec):
-
-* `git clone https://github.com/haskell/attoparsec.git`
-
-Authors
--------
-
-This library was written by Bryan O'Sullivan <bos@serpentine.com>
-and is maintained by Ben Gamari <ben@smart-cactus.org>.
+A fork of [attoparsec](https://github.com/haskell/attoparsec) library
+allows to define omnidirected parsers or parsers consuming input from
+right-to-left. The library is highly backward compabitle with original
+interface.  Idea to do the fork is inspired by the need to parse a CSV
+file in one go with constant memory footprint and rows in reverse
+chronological order.

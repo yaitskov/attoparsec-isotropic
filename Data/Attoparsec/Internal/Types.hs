@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP, BangPatterns, GeneralizedNewtypeDeriving, OverloadedStrings,
-    Rank2Types, RecordWildCards, TypeFamilies, DataKinds,
-    MultiParamTypeClasses, FlexibleContexts #-}
+    Rank2Types, RecordWildCards, TypeFamilies, DataKinds, TypeApplications,
+    MultiParamTypeClasses, FlexibleContexts, FlexibleInstances #-}
 -- |
 -- Module      :  Data.Attoparsec.Internal.Types
 -- Copyright   :  Bryan O'Sullivan 2007-2015
@@ -48,10 +48,12 @@ import Data.Tagged (Tagged(..), untag)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Text.Unsafe (Iter(..))
+import Debug.TraceEmbrace
 import Prelude hiding (succ)
 import Data.Attoparsec.ByteString.Buffer (Dir (..))
 import qualified Data.Attoparsec.ByteString.Buffer as B
 import qualified Data.Attoparsec.Text.Buffer as T
+
 
 newtype DirPos (d :: Dir) = Pos { fromPos :: Int }
             deriving (Eq, Ord, Show, Num)
@@ -187,15 +189,38 @@ instance Fail.MonadFail (DirParser d i) where
       where msg = "Failed reading: " ++ err
     {-# INLINE fail #-}
 
+-- I see in case of failure - t' with increased drift is used with
+-- old pos. What options in Backward mode?
+-- 1) add drift increase to old pos?
+--    Sounds spooky
+-- 2) Use original t
 plus :: DirParser d i a -> DirParser d i a -> DirParser d i a
 plus f g = Parser $ \t pos more lose succ ->
-  let lose' t' _pos' more' _ctx _msg = runParser g t' pos more' lose succ
+  let lose' t' pos' more' _ctx _msg = runParser g t' ($(tr "/pos pos'") pos) more' lose succ
   in runParser f t pos more lose' succ
 
-instance MonadPlus (DirParser d i) where
+type BsBackParser a = DirParser Backward ByteString a
+
+plusBack :: BsBackParser a -> BsBackParser a -> BsBackParser a
+plusBack f g =
+  Parser $ \t pos more lose succ' ->
+             let lose' t' _pos' more' _ctx _msg =
+                   let !tDrift = $(tw "t drift/") $ B.getDrift t
+                       !t'Drift = $(tw "t' drift/") $ B.getDrift t'
+                       !dd = $(tw "dd/") $ t'Drift - tDrift
+                       pos' = $(tw "pos'/pos") $ pos + (Pos @Backward dd)
+                   in runParser g t' pos' more' lose succ'
+             in runParser f t pos more lose' succ'
+
+instance MonadPlus (DirParser Forward i) where
     mzero = fail "mzero"
     {-# INLINE mzero #-}
     mplus = plus
+
+instance MonadPlus (DirParser Backward ByteString) where
+    mzero = fail "mzero"
+    {-# INLINE mzero #-}
+    mplus = plusBack
 
 instance Functor (DirParser d i) where
     fmap f p = Parser $ \t pos more lose succ ->
@@ -220,21 +245,50 @@ instance Applicative (DirParser d i) where
     x <* y = x >>= \a -> y >> pure a
     {-# INLINE (<*) #-}
 
-instance Semigroup (DirParser d i a) where
+instance Semigroup (DirParser Forward i a) where
     (<>) = plus
     {-# INLINE (<>) #-}
 
-instance Monoid (DirParser d i a) where
+instance Semigroup (BsBackParser a) where
+    (<>) = plusBack
+    {-# INLINE (<>) #-}
+
+instance Monoid (DirParser Forward i a) where
     mempty  = fail "mempty"
     {-# INLINE mempty #-}
     mappend = (<>)
     {-# INLINE mappend #-}
 
-instance Alternative (DirParser d i) where
+instance Monoid (BsBackParser a) where
+    mempty  = fail "mempty"
+    {-# INLINE mempty #-}
+    mappend = (<>)
+    {-# INLINE mappend #-}
+
+instance Alternative (DirParser Forward i) where
     empty = fail "empty"
     {-# INLINE empty #-}
 
     (<|>) = plus
+    {-# INLINE (<|>) #-}
+
+    many v = many_v
+      where
+        many_v = some_v <|> pure []
+        some_v = (:) <$> v <*> many_v
+    {-# INLINE many #-}
+
+    some v = some_v
+      where
+        many_v = some_v <|> pure []
+        some_v = (:) <$> v <*> many_v
+    {-# INLINE some #-}
+
+instance Alternative (DirParser Backward ByteString) where
+    empty = fail "empty"
+    {-# INLINE empty #-}
+
+    (<|>) = plusBack
     {-# INLINE (<|>) #-}
 
     many v = many_v

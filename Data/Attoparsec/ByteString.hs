@@ -84,6 +84,8 @@ module Data.Attoparsec.ByteString
 
     -- * Combinators
     , I.DirectedTuple ((>*<))
+    , (*<)
+    , (>*)
     , try
     , (<?>)
     , choice
@@ -112,7 +114,7 @@ import Data.List (intercalate)
 import qualified Data.Attoparsec.ByteString.Internal as I
 import qualified Data.Attoparsec.Internal as I
 import qualified Data.ByteString as B
-import Data.Attoparsec.ByteString.Internal (Result, parse, parseBack, dirParse)
+import Data.Attoparsec.ByteString.Internal (Result, parse, parseBack, dirParse, (>*), (*<))
 import qualified Data.Attoparsec.Internal.Types as T
 
 -- $parsec
@@ -210,7 +212,7 @@ import qualified Data.Attoparsec.Internal.Types as T
 parseTest :: (Show a) => I.Parser a -> B.ByteString -> IO ()
 parseTest = dirParseTest
 
-dirParseTest :: (I.BsParserCon d, Show a) => I.DirParser d a -> B.ByteString -> IO ()
+dirParseTest :: (I.DefaultDrift d, I.BsParserCon d, Show a) => I.DirParser d a -> B.ByteString -> IO ()
 dirParseTest p s = print (dirParse p s)
 
 -- | Run a parser with an initial input string, and a monadic action
