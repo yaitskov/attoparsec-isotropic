@@ -128,9 +128,10 @@ class IntLength a where
 
 instance IntLength ByteString where
   length = B.length
-
+  {-# INLINE length #-}
 instance IntLength a => IntLength (Tagged t a) where
   length  = length . untag
+  {-# INLINE length #-}
 
 spanTag :: forall k (t :: k) a b c. (a -> (b, c)) -> Tagged t a -> (Tagged t b, Tagged t c)
 spanTag f (Tagged a) =
@@ -145,7 +146,7 @@ class DirectedPlus d => Directed (d :: Dir) where
     DirPos d -> -- ^ new position
     DirPos d -> -- ^ origin position
     DirPos d
-  -- zero :: DirBuffer d -> DirPos d
+
   startPos :: ByteString -> DirPos d
   isNotAll :: DirPos d -> Int -> Bool
   substring :: DirPos d -> DirPos d -> DirBuffer d -> Tagged d ByteString
@@ -164,23 +165,35 @@ class DirectedPlus d => Directed (d :: Dir) where
 
 instance Directed Forward where
   diffLen np op = np - op
-  -- zero _ = 0
+  {-# INLINE diffLen #-}
   startPos _ = Pos 0
+  {-# INLINE startPos #-}
   isNotAll (Pos p) n = p < n
+  {-# INLINE isNotAll #-}
   substring (Pos pos) (Pos n) = Tagged . Buf.substring pos n
   {-# INLINE substring #-}
   lengthAtLeast (Pos pos) n bs = Buf.length bs >= pos + n
   {-# INLINE lengthAtLeast #-}
   span f = spanTag (B8.span f)
+  {-# INLINE span #-}
   uncons (Tagged bs) = B8.uncons bs
+  {-# INLINE uncons #-}
   snoc (Tagged bs) = B8.snoc bs
+  {-# INLINE snoc #-}
   takeWhileD p bs = B8.takeWhile p <$> bs
+  {-# INLINE takeWhileD #-}
   peekRest (Pos d) =  Tagged . Buf.unsafeDrop d
+  {-# INLINE peekRest #-}
   isPrefixOf (Tagged pre) (Tagged bs) = B.isPrefixOf pre bs
+  {-# INLINE isPrefixOf #-}
   drop n bs = B.drop n <$> bs
+  {-# INLINE drop #-}
   unsafeTake n bs = B.unsafeTake n <$> bs
+  {-# INLINE unsafeTake #-}
   unsafeDrop n bs = B.unsafeDrop n <$> bs
+  {-# INLINE unsafeDrop #-}
   reverse = P.reverse
+  {-# INLINE reverse #-}
   scanner s1 bs p =
     withPsTag bs $ \fp off len ->
       withForeignPtr fp $ \ptr0 -> do
@@ -195,29 +208,44 @@ instance Directed Forward where
               | otherwise = done (ptr `FP.minusPtr` start) s
             done !i !s = return (T i s)
         inner start s1
+  {-# INLINE scanner #-}
 
 instance Directed Backward where
   diffLen np op = op - np
-  -- zero _ = 1
+  {-# INLINE diffLen #-}
   startPos = Pos . (\x -> x - 1) . B.length
+  {-# INLINE startPos #-}
   isNotAll a n = a >= 0 && n > 0
+  {-# INLINE isNotAll #-}
   substring (Pos pos) (Pos n) b =
     $(tw "substring/pos n b")
       (Tagged (Buf.substring (pos + 1 - n) n b))
+  {-# INLINE substring #-}
   lengthAtLeast (Pos pos) n _bs = pos + 1 - n >= 0
+  {-# INLINE lengthAtLeast #-}
   span p = spanTag (B8.spanEnd p)
+  {-# INLINE span #-}
   uncons (Tagged bs) = swap <$> B8.unsnoc bs
+  {-# INLINE uncons #-}
   snoc (Tagged bs) b = B8.cons b bs
+  {-# INLINE snoc #-}
   takeWhileD p bs = B8.takeWhileEnd p <$> bs
+  {-# INLINE takeWhileD #-}
   peekRest (Pos d) b =
     $(tw "/d b") (Tagged (Buf.substring 0 (d + 1) b))
+  {-# INLINE peekRest #-}
   isPrefixOf (Tagged pre) (Tagged bs) = B.isSuffixOf pre bs
+  {-# INLINE isPrefixOf #-}
   drop n bs = B.dropEnd n <$> bs
+  {-# INLINE drop #-}
   -- unsafeTakeEnd
   unsafeTake n bs = B.unsafeDrop (B.length (untag bs) - n) <$> bs
+  {-# INLINE unsafeTake #-}
   -- unsafeDropEnd
   unsafeDrop n bs = B.unsafeTake (B.length (untag bs) - n) <$> bs
+  {-# INLINE unsafeDrop #-}
   reverse = id
+  {-# INLINE reverse #-}
   scanner s1 bs p =
     withPsTag bs $ \fp off len ->
       withForeignPtr fp $ \(Tagged ptr0) ->
@@ -235,6 +263,7 @@ instance Directed Backward where
                 | otherwise = done (start `FP.minusPtr` ptr) s
               done !i !s = return (T i s)
           inner start s1
+  {-# INLINE scanner #-}
 
 class Directed d => DirectedTuple d where
   -- | Run first then last parser in Forward mode and vice-versa in Backward one.
@@ -245,9 +274,11 @@ infixl 4 >*<
 
 instance DirectedTuple Forward where
   a >*< b = (,) <$> a <*> b
+  {-# INLINE (>*<) #-}
 
 instance DirectedTuple Backward where
   a >*< b = b >>= \br -> a >>= \ar -> pure (ar, br)
+  {-# INLINE (>*<) #-}
 
 (>*) :: DirectedTuple d => DirParser d a -> DirParser d b -> DirParser d b
 a >* b = snd <$> (a >*< b)
@@ -726,8 +757,7 @@ parseBackOnly = dirParseOnly
 
 get :: BsParserCon d => DirParser d (Tagged d ByteString)
 get = T.Parser $ \t pos more _lose succ ->
-  let drift = Buf.getDrift t
-  in succ t pos more (peekRest ($(tw "from position/t drift") pos) t)
+  succ t pos more (peekRest ($(tw "from position/t") pos) t)
 {-# INLINE get #-}
 
 endOfChunk :: BsParserCon d => DirParser d Bool

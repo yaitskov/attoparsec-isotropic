@@ -31,6 +31,7 @@ module Data.Attoparsec.ByteString.Char8
     , A.parse
     , A.feed
     , A.parseOnly
+    , A.parseBackOnly
     , A.parseWith
     , A.parseTest
 
@@ -136,11 +137,11 @@ import Data.Attoparsec.ByteString.Internal (DirParser, Parser, BackParser, Direc
 import Data.Attoparsec.Combinator
 import Data.Bits (Bits, (.|.), shiftL)
 import Data.ByteString.Internal (c2w, w2c)
--- import Data.Int (Int8, Int16, Int32, Int64)
+import Data.Int (Int8, Int16, Int32, Int64)
 import Data.String (IsString(..))
 import Data.Scientific (Scientific)
 import qualified Data.Scientific as Sci
-import Data.Word (Word8) -- , Word16, Word32, Word64)
+import Data.Word (Word8, Word16, Word32, Word64)
 import Prelude hiding (takeWhile)
 import qualified Data.Attoparsec.ByteString as A
 import qualified Data.Attoparsec.ByteString.Internal as I
@@ -271,7 +272,6 @@ isSpace_w8 :: Word8 -> Bool
 isSpace_w8 w = w == 32 || w - 9 <= 4
 {-# INLINE isSpace_w8 #-}
 
-
 -- | Parse a space character.
 --
 -- /Note/: This parser only gives correct answers for the ASCII
@@ -285,17 +285,17 @@ space = satisfy isSpace <?> "space"
 -- | Match a specific character.
 char :: Directed d => Char -> DirParser d Char
 char c = satisfy (== c) <?> [c]
--- {-# INLINE char #-}
+{-# INLINE char #-}
 
 -- | Match a specific character, but return its 'Word8' value.
 char8 :: Directed d => Char -> DirParser d Word8
 char8 c = I.satisfy (\b -> $(tw "b is /b c") $ b == c2w c) <?> [c]
--- {-# INLINE char8 #-}
+{-# INLINE char8 #-}
 
 -- | Match any character except the given one.
 notChar :: Directed d => Char -> DirParser d Char
 notChar c = satisfy (/= c) <?> "not " ++ [c]
--- {-# INLINE notChar #-}
+{-# INLINE notChar #-}
 
 -- | Match any character in a set.
 --
@@ -328,7 +328,7 @@ notInClass s = not . inClass s
 -- failure occurs.  Careless use will thus result in an infinite loop.
 takeWhile :: Directed d => (Char -> Bool) -> DirParser d B.ByteString
 takeWhile p = I.takeWhile (p . w2c)
--- {-# INLINE takeWhile #-}
+{-# INLINE takeWhile #-}
 
 -- | A stateful scanner.  The predicate consumes and transforms a
 -- state argument, and each transformed state is passed to successive
@@ -343,7 +343,7 @@ takeWhile p = I.takeWhile (p . w2c)
 -- failure occurs.  Careless use will thus result in an infinite loop.
 scan :: (Show s, Directed d) => s -> (s -> Char -> Maybe s) -> DirParser d B.ByteString
 scan s0 p = I.scan s0 (\s -> p s . w2c)
--- {-# INLINE scan #-}
+{-# INLINE scan #-}
 
 -- | Consume input as long as the predicate returns 'False'
 -- (i.e. until it returns 'True'), and return the consumed input.
@@ -392,18 +392,6 @@ skipSpace = I.skipWhile isSpace_w8
 -- provided for this purpose are obsolete and unnecessary, and will be
 -- removed in the next major version.)
 
--- | /Obsolete/. A type-specialized version of '*>' for
--- 'B.ByteString'. Use '*>' instead.
--- (.*>) :: Directed d => B.ByteString -> DirParser d a -> DirParser d a
--- s .*> f = I.string s *> f
--- {-# DEPRECATED (.*>) "This is no longer necessary, and will be removed. Use '*>' instead." #-}
-
--- -- | /Obsolete/. A type-specialized version of '<*' for
--- -- 'B.ByteString'. Use '<*' instead.
--- (<*.) :: Directed d => DirParser d a -> B.ByteString -> DirParser d a
--- f <*. s = f <* I.string s
--- {-# DEPRECATED (<*.) "This is no longer necessary, and will be removed. Use '<*' instead." #-}
-
 -- | A predicate that matches either a carriage return @\'\\r\'@ or
 -- newline @\'\\n\'@ character.
 isEndOfLine :: Word8 -> Bool
@@ -429,43 +417,74 @@ hexadecimal = B8.foldl' step 0 `fmap` I.takeWhile1 isHexDigit
     step a w | w >= 48 && w <= 57  = (a `shiftL` 4) .|. fromIntegral (w - 48)
              | w >= 97             = (a `shiftL` 4) .|. fromIntegral (w - 87)
              | otherwise           = (a `shiftL` 4) .|. fromIntegral (w - 55)
--- {-# SPECIALISE hexadecimal :: Parser Int #-}
--- {-# SPECIALISE hexadecimal :: Parser Int8 #-}
--- {-# SPECIALISE hexadecimal :: Parser Int16 #-}
--- {-# SPECIALISE hexadecimal :: Parser Int32 #-}
--- {-# SPECIALISE hexadecimal :: Parser Int64 #-}
--- {-# SPECIALISE hexadecimal :: Parser Integer #-}
--- {-# SPECIALISE hexadecimal :: Parser Word #-}
--- {-# SPECIALISE hexadecimal :: Parser Word8 #-}
--- {-# SPECIALISE hexadecimal :: Parser Word16 #-}
--- {-# SPECIALISE hexadecimal :: Parser Word32 #-}
--- {-# SPECIALISE hexadecimal :: Parser Word64 #-}
+{-# SPECIALISE hexadecimal :: Parser Int #-}
+{-# SPECIALISE hexadecimal :: Parser Int8 #-}
+{-# SPECIALISE hexadecimal :: Parser Int16 #-}
+{-# SPECIALISE hexadecimal :: Parser Int32 #-}
+{-# SPECIALISE hexadecimal :: Parser Int64 #-}
+{-# SPECIALISE hexadecimal :: Parser Integer #-}
+{-# SPECIALISE hexadecimal :: Parser Word #-}
+{-# SPECIALISE hexadecimal :: Parser Word8 #-}
+{-# SPECIALISE hexadecimal :: Parser Word16 #-}
+{-# SPECIALISE hexadecimal :: Parser Word32 #-}
+{-# SPECIALISE hexadecimal :: Parser Word64 #-}
+
+{-# SPECIALISE hexadecimal :: BackParser Int #-}
+{-# SPECIALISE hexadecimal :: BackParser Int8 #-}
+{-# SPECIALISE hexadecimal :: BackParser Int16 #-}
+{-# SPECIALISE hexadecimal :: BackParser Int32 #-}
+{-# SPECIALISE hexadecimal :: BackParser Int64 #-}
+{-# SPECIALISE hexadecimal :: BackParser Integer #-}
+{-# SPECIALISE hexadecimal :: BackParser Word #-}
+{-# SPECIALISE hexadecimal :: BackParser Word8 #-}
+{-# SPECIALISE hexadecimal :: BackParser Word16 #-}
+{-# SPECIALISE hexadecimal :: BackParser Word32 #-}
+{-# SPECIALISE hexadecimal :: BackParser Word64 #-}
 
 -- | Parse and decode an unsigned decimal number.
 decimal :: (Directed d, Integral a) => DirParser d a
 decimal = B8.foldl' step 0 `fmap` I.takeWhile1 (\c -> $(tw "isDigit/c") $ isDigit_w8 c)
   where step a w = a * 10 + fromIntegral (w - 48)
--- {-# SPECIALISE decimal :: Parser Int #-}
--- {-# SPECIALISE decimal :: Parser Int8 #-}
--- {-# SPECIALISE decimal :: Parser Int16 #-}
--- {-# SPECIALISE decimal :: Parser Int32 #-}
--- {-# SPECIALISE decimal :: Parser Int64 #-}
--- {-# SPECIALISE decimal :: Parser Integer #-}
--- {-# SPECIALISE decimal :: Parser Word #-}
--- {-# SPECIALISE decimal :: Parser Word8 #-}
--- {-# SPECIALISE decimal :: Parser Word16 #-}
--- {-# SPECIALISE decimal :: Parser Word32 #-}
--- {-# SPECIALISE decimal :: Parser Word64 #-}
+{-# SPECIALISE decimal :: Parser Int #-}
+{-# SPECIALISE decimal :: Parser Int8 #-}
+{-# SPECIALISE decimal :: Parser Int16 #-}
+{-# SPECIALISE decimal :: Parser Int32 #-}
+{-# SPECIALISE decimal :: Parser Int64 #-}
+{-# SPECIALISE decimal :: Parser Integer #-}
+{-# SPECIALISE decimal :: Parser Word #-}
+{-# SPECIALISE decimal :: Parser Word8 #-}
+{-# SPECIALISE decimal :: Parser Word16 #-}
+{-# SPECIALISE decimal :: Parser Word32 #-}
+{-# SPECIALISE decimal :: Parser Word64 #-}
+
+{-# SPECIALISE decimal :: BackParser Int #-}
+{-# SPECIALISE decimal :: BackParser Int8 #-}
+{-# SPECIALISE decimal :: BackParser Int16 #-}
+{-# SPECIALISE decimal :: BackParser Int32 #-}
+{-# SPECIALISE decimal :: BackParser Int64 #-}
+{-# SPECIALISE decimal :: BackParser Integer #-}
+{-# SPECIALISE decimal :: BackParser Word #-}
+{-# SPECIALISE decimal :: BackParser Word8 #-}
+{-# SPECIALISE decimal :: BackParser Word16 #-}
+{-# SPECIALISE decimal :: BackParser Word32 #-}
+{-# SPECIALISE decimal :: BackParser Word64 #-}
 
 -- | Parse a number with an optional leading @\'+\'@ or @\'-\'@ sign
 -- character.
 signed :: (Directed d, I.DirectedTuple d, Num a) => DirParser d a -> DirParser d a
--- {-# SPECIALISE signed :: Parser Int -> Parser Int #-}
--- {-# SPECIALISE signed :: Parser Int8 -> Parser Int8 #-}
--- {-# SPECIALISE signed :: Parser Int16 -> Parser Int16 #-}
--- {-# SPECIALISE signed :: Parser Int32 -> Parser Int32 #-}
--- {-# SPECIALISE signed :: Parser Int64 -> Parser Int64 #-}
--- {-# SPECIALISE signed :: Parser Integer -> Parser Integer #-}
+{-# SPECIALISE signed :: Parser Int -> Parser Int #-}
+{-# SPECIALISE signed :: Parser Int8 -> Parser Int8 #-}
+{-# SPECIALISE signed :: Parser Int16 -> Parser Int16 #-}
+{-# SPECIALISE signed :: Parser Int32 -> Parser Int32 #-}
+{-# SPECIALISE signed :: Parser Int64 -> Parser Int64 #-}
+{-# SPECIALISE signed :: Parser Integer -> Parser Integer #-}
+
+{-# SPECIALISE signed :: BackParser Int -> BackParser Int #-}
+{-# SPECIALISE signed :: BackParser Int8 -> BackParser Int8 #-}
+{-# SPECIALISE signed :: BackParser Int16 -> BackParser Int16 #-}
+{-# SPECIALISE signed :: BackParser Int32 -> BackParser Int32 #-}
+{-# SPECIALISE signed :: BackParser Int64 -> BackParser Int64 #-}
+{-# SPECIALISE signed :: BackParser Integer -> BackParser Integer #-}
 signed p = (negate . snd <$> (char8 '-' >*< p))
        <|> (snd <$> (char8 '+' >*< p))
        <|> p
@@ -483,11 +502,16 @@ type MonoidalParser d = (I.DirChunk d B.ByteString, DirectedTuple d, Directed d,
 --
 -- In most cases, it is better to use 'double' or 'scientific'
 -- instead.
-rational :: Fractional a => Parser a
--- {-# SPECIALIZE rational :: Parser Double #-}
--- {-# SPECIALIZE rational :: Parser Float #-}
--- {-# SPECIALIZE rational :: Parser Rational #-}
--- {-# SPECIALIZE rational :: Parser Scientific #-}
+rational :: (Fractional a, MonoidalParser d) => DirParser d a
+{-# SPECIALIZE rational :: Parser Double #-}
+{-# SPECIALIZE rational :: Parser Float #-}
+{-# SPECIALIZE rational :: Parser Rational #-}
+{-# SPECIALIZE rational :: Parser Scientific #-}
+
+{-# SPECIALIZE rational :: BackParser Double #-}
+{-# SPECIALIZE rational :: BackParser Float #-}
+{-# SPECIALIZE rational :: BackParser Rational #-}
+{-# SPECIALIZE rational :: BackParser Scientific #-}
 rational = scientifically realToFrac
 
 -- | Parse a 'Double'.
@@ -526,24 +550,14 @@ rational = scientifically realToFrac
 --
 -- This function does not accept string representations of \"NaN\" or
 -- \"Infinity\".
-double :: MonoidalParser d => DirParser d  Double
+double :: MonoidalParser d => DirParser d Double
 double = scientifically Sci.toRealFloat
+{-# INLINE double #-}
 
 -- | Original attoparsec implementation
 double' :: Parser Double
 double' = scientifically' Sci.toRealFloat
-
--- -- | Parse a number, attempting to preserve both speed and precision.
--- --
--- -- The syntax accepted by this parser is the same as for 'double'.
--- number :: Parser Number
--- number = scientifically $ \s ->
---             let e = Sci.base10Exponent s
---                 c = Sci.coefficient s
---             in if e >= 0
---                then I (c * 10 ^ e)
---                else D (Sci.toRealFloat s)
--- {-# DEPRECATED number "Use 'scientific' instead." #-}
+{-# INLINE double' #-}
 
 -- | Parse a scientific number.
 --

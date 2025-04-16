@@ -16,7 +16,6 @@ import Data.Monoid (mappend, mempty)
 #endif
 
 import Common (pathTo)
-import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData(..))
 import Control.Monad (forM)
 import Data.Attoparsec.ByteString.Char8 (Parser, char, endOfInput, scientific,

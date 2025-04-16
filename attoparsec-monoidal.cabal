@@ -154,7 +154,10 @@ test-suite attoparsec-monoidal-tests
     text,
     transformers,
     trace-embrace,
-    vector
+    vector,
+    -- benchmark dependencies
+    tasty-bench >= 0.3,
+    http-types
 
   default-language: Haskell2010
 

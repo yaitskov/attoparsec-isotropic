@@ -105,8 +105,10 @@ class A.Directed d => LazyDirected d where
 
 instance LazyDirected A.Forward where
   orderChunks = untag
+  {-# INLINE orderChunks #-}
 
 instance LazyDirected A.Backward where
+  {-# INLINE orderChunks #-}
   orderChunks = $(tw' "/") . go Nothing . untag
     where
       go Nothing Empty = Empty
@@ -124,7 +126,7 @@ type LbsParserCon d =
 -- | Run a parser and return its result.
 dirParse :: forall a d. LbsParserCon d => A.DirParser d a -> ByteString -> Result a
 dirParse p s = case orderChunks $ Tagged @d s of
-              xxs@(Chunk x xs) -> go (A.dirParse p x) $ $(tr "/x xs xxs") xs
+              Chunk x xs -> go (A.dirParse p x) $ $(tr "/x xs") xs
               empty      -> go (A.dirParse p B.empty) $ $(tr "empty chunk") empty
   where
     go (T.Fail x stk msg) ys      = Fail (chunk x ys) stk msg

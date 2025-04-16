@@ -26,7 +26,6 @@ numbers = bgroup "numbers" [
   [
     bgroup "no power"
     [ bench "double" $ nf (AT.parseOnly AT.double) tN
-    , bench "number" $ nf (AT.parseOnly AT.number) tN
     , bench "rational" $
       nf (AT.parseOnly (AT.rational :: AT.Parser Rational)) tN
     , bench "scientific" $
@@ -34,7 +33,6 @@ numbers = bgroup "numbers" [
     ]
   , bgroup "positive power"
     [ bench "double" $ nf (AT.parseOnly AT.double) tNePos
-    , bench "number" $ nf (AT.parseOnly AT.number) tNePos
     , bench "rational" $
       nf (AT.parseOnly (AT.rational :: AT.Parser Rational)) tNePos
     , bench "scientific" $
@@ -42,7 +40,6 @@ numbers = bgroup "numbers" [
     ]
   , bgroup "negative power"
     [ bench "double" $ nf (AT.parseOnly AT.double) tNeNeg
-    , bench "number" $ nf (AT.parseOnly AT.number) tNeNeg
     , bench "rational" $
       nf (AT.parseOnly (AT.rational :: AT.Parser Rational))  tNeNeg
     , bench "scientific" $
@@ -55,7 +52,8 @@ numbers = bgroup "numbers" [
   in bgroup "ByteString"
   [ bgroup "no power"
     [ bench "double" $ nf (AC.parseOnly AC.double) bN
-    , bench "number" $ nf (AC.parseOnly AC.number) bN
+    , bench "double'" $ nf (AC.parseOnly AC.double') bN
+    , bench "double-" $ nf (AC.parseBackOnly AC.double) bN
     , bench "rational" $
       nf (AC.parseOnly (AC.rational :: AC.Parser Rational))   bN
     , bench "scientific" $
@@ -63,7 +61,8 @@ numbers = bgroup "numbers" [
     ]
   , bgroup "positive power"
     [ bench "double" $ nf (AC.parseOnly AC.double) bNePos
-    , bench "number" $ nf (AC.parseOnly AC.number) bNePos
+    , bench "double'" $ nf (AC.parseOnly AC.double') bNePos
+    , bench "double-" $ nf (AC.parseBackOnly AC.double) bNePos
     , bench "rational" $
       nf (AC.parseOnly (AC.rational :: AC.Parser Rational)) bNePos
     , bench "scientific" $
@@ -71,7 +70,8 @@ numbers = bgroup "numbers" [
     ]
   , bgroup "negative power"
     [ bench "double" $ nf (AC.parseOnly AC.double) bNeNeg
-    , bench "number" $ nf (AC.parseOnly AC.number) bNeNeg
+    , bench "double'" $ nf (AC.parseOnly AC.double') bNeNeg
+    , bench "double-" $ nf (AC.parseBackOnly AC.double) bNeNeg
     , bench "rational" $
       nf (AC.parseOnly (AC.rational :: AC.Parser Rational)) bNeNeg
     , bench "scientific" $

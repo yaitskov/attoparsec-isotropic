@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP #-}
+{-# LANGUAGE BangPatterns, CPP, DataKinds #-}
 #if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Trustworthy #-} -- Imports internal modules
 #endif
@@ -45,7 +45,7 @@ import Data.Monoid (Monoid(mappend))
 #endif
 import Control.Applicative (Alternative(..), many, (<|>))
 import Control.Monad (MonadPlus(..))
-import Data.Attoparsec.Internal.Types (DirParser(..), Parser, IResult(..))
+import Data.Attoparsec.Internal.Types (DirParser(..), Dir(Backward), Parser, IResult(..))
 import Data.Attoparsec.Internal (endOfInput, atEnd, satisfyElem)
 import Data.ByteString (ByteString)
 import Data.Foldable (asum)
@@ -79,6 +79,8 @@ choice :: Alternative f => [f a] -> f a
 choice = asum
 {-# SPECIALIZE choice :: [Parser ByteString a]
                       -> Parser ByteString a #-}
+{-# SPECIALIZE choice :: [DirParser Backward ByteString a]
+                      -> DirParser Backward ByteString a #-}
 {-# SPECIALIZE choice :: [Parser Text a] -> Parser Text a #-}
 {-# SPECIALIZE choice :: [Z.Parser a] -> Z.Parser a #-}
 
@@ -90,6 +92,7 @@ choice = asum
 option :: Alternative f => a -> f a -> f a
 option x p = p <|> pure x
 {-# SPECIALIZE option :: a -> Parser ByteString a -> Parser ByteString a #-}
+{-# SPECIALIZE option :: a -> DirParser Backward ByteString a -> DirParser Backward ByteString a #-}
 {-# SPECIALIZE option :: a -> Parser Text a -> Parser Text a #-}
 {-# SPECIALIZE option :: a -> Z.Parser a -> Z.Parser a #-}
 
@@ -138,6 +141,9 @@ sepBy :: Alternative f => f a -> f s -> f [a]
 sepBy p s = liftA2 (:) p ((s *> sepBy1 p s) <|> pure []) <|> pure []
 {-# SPECIALIZE sepBy :: Parser ByteString a -> Parser ByteString s
                      -> Parser ByteString [a] #-}
+{-# SPECIALIZE sepBy :: DirParser Backward ByteString a
+                     -> DirParser Backward ByteString s
+                     -> DirParser Backward ByteString [a] #-}
 {-# SPECIALIZE sepBy :: Parser Text a -> Parser Text s -> Parser Text [a] #-}
 {-# SPECIALIZE sepBy :: Z.Parser a -> Z.Parser s -> Z.Parser [a] #-}
 
@@ -151,6 +157,8 @@ sepBy' p s = scan `mplus` return []
   where scan = liftM2' (:) p ((s >> sepBy1' p s) `mplus` return [])
 {-# SPECIALIZE sepBy' :: Parser ByteString a -> Parser ByteString s
                       -> Parser ByteString [a] #-}
+{-# SPECIALIZE sepBy' :: DirParser Backward ByteString a -> DirParser Backward ByteString s
+                      -> DirParser Backward ByteString [a] #-}
 {-# SPECIALIZE sepBy' :: Parser Text a -> Parser Text s -> Parser Text [a] #-}
 {-# SPECIALIZE sepBy' :: Z.Parser a -> Z.Parser s -> Z.Parser [a] #-}
 
@@ -163,6 +171,9 @@ sepBy1 p s = scan
     where scan = liftA2 (:) p ((s *> scan) <|> pure [])
 {-# SPECIALIZE sepBy1 :: Parser ByteString a -> Parser ByteString s
                       -> Parser ByteString [a] #-}
+{-# SPECIALIZE sepBy1 :: DirParser Backward ByteString a
+                      -> DirParser Backward ByteString s
+                      -> DirParser Backward ByteString [a] #-}
 {-# SPECIALIZE sepBy1 :: Parser Text a -> Parser Text s -> Parser Text [a] #-}
 {-# SPECIALIZE sepBy1 :: Z.Parser a -> Z.Parser s -> Z.Parser [a] #-}
 
@@ -176,6 +187,9 @@ sepBy1' p s = scan
     where scan = liftM2' (:) p ((s >> scan) `mplus` return [])
 {-# SPECIALIZE sepBy1' :: Parser ByteString a -> Parser ByteString s
                        -> Parser ByteString [a] #-}
+{-# SPECIALIZE sepBy1' :: DirParser Backward ByteString a
+                       -> DirParser Backward ByteString s
+                       -> DirParser Backward ByteString [a] #-}
 {-# SPECIALIZE sepBy1' :: Parser Text a -> Parser Text s -> Parser Text [a] #-}
 {-# SPECIALIZE sepBy1' :: Z.Parser a -> Z.Parser s -> Z.Parser [a] #-}
 
@@ -193,6 +207,9 @@ manyTill p end = scan
     where scan = (end *> pure []) <|> liftA2 (:) p scan
 {-# SPECIALIZE manyTill :: Parser ByteString a -> Parser ByteString b
                         -> Parser ByteString [a] #-}
+{-# SPECIALIZE manyTill :: DirParser Backward ByteString a
+                        -> DirParser Backward ByteString b
+                        -> DirParser Backward ByteString [a] #-}
 {-# SPECIALIZE manyTill :: Parser Text a -> Parser Text b -> Parser Text [a] #-}
 {-# SPECIALIZE manyTill :: Z.Parser a -> Z.Parser b -> Z.Parser [a] #-}
 
@@ -212,6 +229,9 @@ manyTill' p end = scan
     where scan = (end >> return []) `mplus` liftM2' (:) p scan
 {-# SPECIALIZE manyTill' :: Parser ByteString a -> Parser ByteString b
                          -> Parser ByteString [a] #-}
+{-# SPECIALIZE manyTill' :: DirParser Backward ByteString a
+                         -> DirParser Backward ByteString b
+                         -> DirParser Backward ByteString [a] #-}
 {-# SPECIALIZE manyTill' :: Parser Text a -> Parser Text b -> Parser Text [a] #-}
 {-# SPECIALIZE manyTill' :: Z.Parser a -> Z.Parser b -> Z.Parser [a] #-}
 
@@ -220,6 +240,7 @@ skipMany :: Alternative f => f a -> f ()
 skipMany p = scan
     where scan = (p *> scan) <|> pure ()
 {-# SPECIALIZE skipMany :: Parser ByteString a -> Parser ByteString () #-}
+{-# SPECIALIZE skipMany :: DirParser Backward ByteString a -> DirParser Backward ByteString () #-}
 {-# SPECIALIZE skipMany :: Parser Text a -> Parser Text () #-}
 {-# SPECIALIZE skipMany :: Z.Parser a -> Z.Parser () #-}
 
@@ -227,6 +248,7 @@ skipMany p = scan
 skipMany1 :: Alternative f => f a -> f ()
 skipMany1 p = p *> skipMany p
 {-# SPECIALIZE skipMany1 :: Parser ByteString a -> Parser ByteString () #-}
+{-# SPECIALIZE skipMany1 :: DirParser Backward ByteString a -> DirParser Backward ByteString () #-}
 {-# SPECIALIZE skipMany1 :: Parser Text a -> Parser Text () #-}
 {-# SPECIALIZE skipMany1 :: Z.Parser a -> Z.Parser () #-}
 

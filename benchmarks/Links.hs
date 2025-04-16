@@ -33,7 +33,7 @@ param = do
   skipSpace
   return (name, val)
 
-data Quot = Literal | Backslash
+data Quot = Literal | Backslash deriving (Show, Eq)
 
 quotedString :: Parser ByteString
 quotedString = char '"' *> (fixup <$> body) <* char '"'

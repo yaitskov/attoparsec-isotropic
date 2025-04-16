@@ -189,15 +189,11 @@ instance Fail.MonadFail (DirParser d i) where
       where msg = "Failed reading: " ++ err
     {-# INLINE fail #-}
 
--- I see in case of failure - t' with increased drift is used with
--- old pos. What options in Backward mode?
--- 1) add drift increase to old pos?
---    Sounds spooky
--- 2) Use original t
 plus :: DirParser d i a -> DirParser d i a -> DirParser d i a
 plus f g = Parser $ \t pos more lose succ ->
-  let lose' t' pos' more' _ctx _msg = runParser g t' ($(tr "/pos pos'") pos) more' lose succ
+  let lose' t' _pos' more' _ctx _msg = runParser g t' pos more' lose succ
   in runParser f t pos more lose' succ
+{-# INLINE plus #-}
 
 type BsBackParser a = DirParser Backward ByteString a
 
@@ -211,16 +207,19 @@ plusBack f g =
                        pos' = $(tw "pos'/pos") $ pos + (Pos @Backward dd)
                    in runParser g t' pos' more' lose succ'
              in runParser f t pos more lose' succ'
+{-# INLINE plusBack #-}
 
 instance MonadPlus (DirParser Forward i) where
     mzero = fail "mzero"
     {-# INLINE mzero #-}
     mplus = plus
+    {-# INLINE mplus #-}
 
 instance MonadPlus (DirParser Backward ByteString) where
     mzero = fail "mzero"
     {-# INLINE mzero #-}
     mplus = plusBack
+    {-# INLINE mplus #-}
 
 instance Functor (DirParser d i) where
     fmap f p = Parser $ \t pos more lose succ ->

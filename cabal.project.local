@@ -1,3 +1,4 @@
 ignore-project: False
 tests: True
+benchmarks: true
 -- multi-repl: True

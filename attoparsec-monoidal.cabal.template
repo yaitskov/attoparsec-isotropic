@@ -144,11 +144,16 @@ test-suite attoparsec-monoidal-tests
     quickcheck-unicode,
     scientific,
     tasty >= 0.11,
+    tasty-bench >= 0.3,
     tasty-quickcheck >= 0.8,
     text,
     transformers,
     trace-embrace,
-    vector
+    vector,
+    -- benchmark dependencies
+    -- cabal2nix skips dependencies from benchmark
+    tasty-bench >= 0.3,
+    http-types
 
   default-language: Haskell2010
 
