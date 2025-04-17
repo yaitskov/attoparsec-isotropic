@@ -16,6 +16,7 @@ in hfinal: hprev:
     (dontCheck (hfinal.callCabal2nix a.name a.source { }))) [
       { name = "trace-embrace";  source = sources.trace-embrace; }
     ])) // {
+      "upload-doc-to-hackage" = hfinal.callPackage sources.upload-doc-to-hackage {};
       "haddock-use-refs" = hfinal.callHackageDirect
         { pkg = "haddock-use-refs";
           ver = "1.0.1";
