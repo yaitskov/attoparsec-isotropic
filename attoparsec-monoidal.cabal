@@ -45,12 +45,12 @@ Flag developer
 -- but do not want to expose them to end users
 library attoparsec-monoidal-internal
   hs-source-dirs: internal
-  build-depends: array,
+  build-depends: array < 0.6,
                  base >= 4.3 && < 5,
                  bytestring <0.13,
-                 tagged,
+                 tagged < 0.9,
                  trace-embrace < 2.0.2,
-                 text >= 1.1.1.3
+                 text < 3.0
   if !impl(ghc >= 8.0)
     build-depends: semigroups >=0.16.1 && <0.21
 
@@ -66,15 +66,15 @@ library attoparsec-monoidal-internal
     TemplateHaskell
 
 library
-  build-depends: array,
+  build-depends: array < 0.6,
                  base >= 4.5 && < 5,
                  bytestring <0.13,
-                 containers,
-                 deepseq,
+                 containers < 0.9,
+                 deepseq < 1.8,
                  scientific >= 0.3.1 && < 0.4,
-                 tagged,
+                 tagged < 1.0,
                  transformers >= 0.2 && (< 0.4 || >= 0.4.1.0) && < 0.7,
-                 text >= 1.1.1.3,
+                 text < 3.0,
                  trace-embrace < 2.0.2,
                  ghc-prim < 0.14,
                  attoparsec-monoidal-internal
@@ -140,7 +140,7 @@ test-suite attoparsec-monoidal-tests
     ghc-options: -Werror
 
   build-depends:
-    array,
+    array < 0.6,
     attoparsec-monoidal,
     attoparsec-monoidal-internal,
     base,
@@ -150,12 +150,14 @@ test-suite attoparsec-monoidal-tests
     quickcheck-unicode,
     scientific,
     tasty >= 0.11,
+    tasty-bench >= 0.3,
     tasty-quickcheck >= 0.8,
-    text,
+    text >= 2.1.1,
     transformers,
     trace-embrace,
     vector,
     -- benchmark dependencies
+    -- cabal2nix skips dependencies from benchmark
     tasty-bench >= 0.3,
     http-types
 
@@ -197,7 +199,7 @@ benchmark attoparsec-monoidal-benchmarks
     base == 4.*,
     bytestring >= 0.10.4.0,
     case-insensitive,
-    containers,
+    containers >= 0.7,
     deepseq >= 1.1,
     directory,
     filepath,
