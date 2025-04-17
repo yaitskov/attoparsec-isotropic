@@ -1,5 +1,4 @@
--- | Root module to be imported by applications.
--- Parser combinators usually are omnidirected and direction is defined
+-- | Parser combinators usually are omnidirected and direction is defined
 -- via a top runner function:
 --
 -- +-------------------------+-------------------------+
