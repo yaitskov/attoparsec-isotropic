@@ -209,10 +209,8 @@ append (Buf fp0 off0 len0 cap0 gen0 ()) !fp1 !off1 !len1 =
 pepreppend :: DirBuffer Backward -> ByteString -> DirBuffer Backward
 pepreppend (Buf _ _ _ 0 _ drift) bs  =
   buffer' (drift + Drift (B.length bs)) $ $(tw' "pepreppend zero cap/drift") bs
-pepreppend buf@(Buf fp0 off0 len0 cap0 gen0 drift) bs =
-  withPS bs
-  $ \fp off len -> preppend buf fp off $
-                   $(tw "pepreppend with/fp0 off0 len0 cap0 gen0 bs fp off drift") len
+pepreppend buf bs =
+  withPS bs $ \fp off len -> preppend buf fp off len
 
 preppend :: DirBuffer Backward -> ForeignPtr a -> Int -> Int -> DirBuffer Backward
 preppend (Buf fp0 off0 len0 cap0 gen0 drift) !fp1 !off1 !len1 =

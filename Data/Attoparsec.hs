@@ -1,23 +1,19 @@
--- |
--- Module      :  Data.Attoparsec
--- Copyright   :  Bryan O'Sullivan 2007-2015
--- License     :  BSD3
+-- | Root module to be imported by applications.
+-- Parser combinators usually are omnidirected and direction is defined
+-- via a top runner function:
 --
--- Maintainer  :  bos@serpentine.com
--- Stability   :  experimental
--- Portability :  unknown
+-- +-------------------------+-------------------------+
+-- | Left-to-Right (classic) | Right-to-Left (reverse) |
+-- +=========================+=========================+
+-- | 'parse'                 | 'parseBack'             |
+-- +-------------------------+-------------------------+
+-- | 'parseOnly'             | 'parseOnlyBack'         |
+-- +-------------------------+-------------------------+
 --
--- Simple, efficient combinator parsing for
--- 'Data.ByteString.ByteString' strings, loosely based on the Parsec
--- library.
---
--- This module is deprecated. Use "Data.Attoparsec.ByteString"
--- instead.
-
-module Data.Attoparsec
-    {-# DEPRECATED "This module will be removed in the next major release." #-}
-    (
-      module Data.Attoparsec.ByteString
-    ) where
-
+{-# LANGUAGE TemplateHaskell #-}
+module Data.Attoparsec (module Data.Attoparsec.ByteString) where
+import Haddock.UseRefs
+import Data.Attoparsec.ByteString.Lazy (parseOnlyBack)
 import Data.Attoparsec.ByteString
+
+countDocRefs

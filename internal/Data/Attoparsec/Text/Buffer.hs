@@ -41,7 +41,6 @@ module Data.Attoparsec.Text.Buffer
 import Control.Exception (assert)
 import Data.List (foldl1')
 import Data.Monoid as Mon (Monoid(..))
-import Data.Semigroup (Semigroup(..))
 import Data.Text ()
 import Data.Text.Internal (Text(..))
 #if MIN_VERSION_text(2,0,0)

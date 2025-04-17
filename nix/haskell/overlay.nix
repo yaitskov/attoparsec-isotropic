@@ -15,7 +15,13 @@ in hfinal: hprev:
   nameValuePair a.name
     (dontCheck (hfinal.callCabal2nix a.name a.source { }))) [
       { name = "trace-embrace";  source = sources.trace-embrace; }
-    ])) # // {
+    ])) // {
+      "haddock-use-refs" = hfinal.callHackageDirect
+        { pkg = "haddock-use-refs";
+          ver = "1.0.1";
+          sha256 = "sha256-fxrfMQ4CUthzNwYVjwV5kJmmPgimVpbnVhxnoYi1GrE=";
+        } {};
+    }
     #   cabal-install = hfinal.callHackageDirect {
     #        pkg = "cabal-install";
     #        ver = "3.12.1.0";

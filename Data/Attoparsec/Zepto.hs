@@ -43,7 +43,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.ByteString (ByteString)
 import Data.Functor.Identity (Identity(runIdentity))
 import Data.Monoid as Mon (Monoid(..))
-import Data.Semigroup (Semigroup(..))
 import Data.Word (Word8)
 import Prelude hiding (take, takeWhile)
 import qualified Data.ByteString as B
