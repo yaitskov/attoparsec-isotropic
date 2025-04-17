@@ -34,7 +34,6 @@ import Data.ByteString (ByteString)
 import Data.Tagged (Tagged(..))
 import Data.Text (Text)
 import Prelude hiding (succ)
--- import Data.Attoparsec.ByteString.Buffer (HasDrift (..))
 
 -- | Compare two 'IResult' values for equality.
 --
@@ -63,14 +62,18 @@ prompt t pos _more lose succ = Partial $ \s ->
     let
       pos' = shiftPositionOnBufferExtend pos s
       t' = pappendChunk t (Tagged @d s)
-      -- d = getDrift t
-      -- d' = getDrift t'
     in
       succ ($(tw "pappendChunk/t t' pos pos'")  t') pos' Incomplete
 {-# SPECIALIZE prompt :: State ByteString -> Pos -> More
                       -> (State ByteString -> Pos -> More
                           -> IResult ByteString r)
                       -> (State ByteString -> Pos -> More
+                          -> IResult ByteString r)
+                      -> IResult ByteString r #-}
+{-# SPECIALIZE prompt :: DirState Backward ByteString -> DirPos Backward -> More
+                      -> (DirState Backward ByteString -> DirPos Backward -> More
+                          -> IResult ByteString r)
+                      -> (DirState Backward ByteString -> DirPos Backward -> More
                           -> IResult ByteString r)
                       -> IResult ByteString r #-}
 {-# SPECIALIZE prompt :: State Text -> Pos -> More
@@ -88,6 +91,7 @@ demandInput = Parser $ \t pos more lose succ ->
              succ' t' pos' more' = succ ($(tr "succ'/pos pos' t t'")  t') pos' more' ()
          in prompt t pos more lose' succ'
 {-# SPECIALIZE demandInput :: Parser ByteString () #-}
+{-# SPECIALIZE demandInput :: DirParser Backward ByteString () #-}
 {-# SPECIALIZE demandInput :: Parser Text () #-}
 
 -- | Immediately demand more input via a 'Partial' continuation
@@ -106,6 +110,7 @@ demandInput_ = Parser $ \t pos more lose succ ->
            in
              succ t' pos' more s
 {-# SPECIALIZE demandInput_ :: Parser ByteString ByteString #-}
+{-# SPECIALIZE demandInput_ :: DirParser Backward ByteString ByteString #-}
 {-# SPECIALIZE demandInput_ :: Parser Text Text #-}
 
 -- | This parser always succeeds.  It returns 'True' if any input is
@@ -132,6 +137,7 @@ endOfInput = Parser $ \t pos more lose succ ->
            succ' t' pos' more' _a = lose t' pos' more' [] "endOfInput"
        in  runParser demandInput t pos more lose' succ'
 {-# SPECIALIZE endOfInput :: Parser ByteString () #-}
+{-# SPECIALIZE endOfInput :: DirParser Backward ByteString () #-}
 {-# SPECIALIZE endOfInput :: Parser Text () #-}
 
 -- | Return an indication of whether the end of input has been
@@ -157,6 +163,12 @@ satisfySuspended p t pos more lose succ =
                                 -> State ByteString -> Pos -> More
                                 -> Failure ByteString (State ByteString) r
                                 -> Success ByteString (State ByteString)
+                                           (ChunkElem ByteString) r
+                                -> IResult ByteString r #-}
+{-# SPECIALIZE satisfySuspended :: (ChunkElem ByteString -> Bool)
+                                -> DirState Backward ByteString -> DirPos Backward -> More
+                                -> DirFailure Backward ByteString (DirState Backward ByteString) r
+                                -> DirSuccess Backward ByteString (DirState Backward ByteString)
                                            (ChunkElem ByteString) r
                                 -> IResult ByteString r #-}
 {-# SPECIALIZE satisfySuspended :: (ChunkElem Text -> Bool)
