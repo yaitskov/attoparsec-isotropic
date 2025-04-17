@@ -107,6 +107,7 @@ module Data.Attoparsec.ByteString
     , I.match
     -- * State observation and manipulation functions
     , I.endOfInput
+    , I.endOfLine
     , I.atEnd
     ) where
 

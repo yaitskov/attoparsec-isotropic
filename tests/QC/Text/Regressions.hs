@@ -6,10 +6,8 @@ module QC.Text.Regressions (
 
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.List (foldl')
 import Data.Maybe (fromMaybe)
 import Data.Char (isLower)
-import Data.Monoid ((<>))
 import QC.Rechunked (rechunkT)
 import Test.Tasty (TestTree)
 import Test.Tasty.QuickCheck (testProperty)
