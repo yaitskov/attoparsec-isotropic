@@ -44,6 +44,7 @@ module Data.Attoparsec.ByteString
     , I.parseOnly
     , I.parseBackOnly
     , parseWith
+    , parseBackWith
     , parseTest
 
     -- ** Result conversion
@@ -230,6 +231,20 @@ parseWith refill p s = step $ parse p s
   where step (T.Partial k) = (step . k) =<< refill
         step r             = return r
 {-# INLINE parseWith #-}
+
+parseBackWith :: (Monad m) =>
+             (m B.ByteString)
+          -- ^ An action that will be executed to provide the parser
+          -- with more input, if necessary.  The action must return an
+          -- 'B.empty' string when there is no more input available.
+          -> I.BackParser a
+          -> B.ByteString
+          -- ^ Initial input for the parser.
+          -> m (Result a)
+parseBackWith refill p s = step $ parseBack p s
+  where step (T.Partial k) = (step . k) =<< refill
+        step r             = return r
+{-# INLINE parseBackWith #-}
 
 -- | Convert a 'Result' value to a 'Maybe' value. A 'T.Partial' result
 -- is treated as failure.
