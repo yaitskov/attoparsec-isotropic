@@ -47,10 +47,20 @@ match n (NonNegative x) (NonNegative y) rs =
             B8.replicate x 'x', B8.pack (show n), B8.replicate y 'y'
           ]
 
+manyPrime :: [Word] -> Repack -> Bool
+manyPrime n rs =
+      $(tw "parsed") (parseBS (P.match parser)
+                      ($(tw' "repacked") (repackBS rs input))) ==
+      Just ($(tw' "input") input, n)
+
+  where parser = P.many' (P.decimal <* P.skipSpace)
+        input = B8.pack (unwords $ fmap show n)
+
 tests :: [TestTree]
 tests = [
     testProperty "choice" choice
   , testProperty "count" count
+  , testProperty "manyPrime" manyPrime
   , testProperty "lookAhead" lookAhead
   , testProperty "match" match
   ]

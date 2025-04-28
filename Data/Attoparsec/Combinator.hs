@@ -1,4 +1,7 @@
 {-# LANGUAGE BangPatterns, CPP, DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 #if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Trustworthy #-} -- Imports internal modules
 #endif
@@ -45,7 +48,7 @@ import Data.Monoid (Monoid(mappend))
 #endif
 import Control.Applicative (Alternative(..), many, (<|>))
 import Control.Monad (MonadPlus(..))
-import Data.Attoparsec.Internal.Types (DirParser(..), Dir(Backward), Parser, IResult(..))
+import Data.Attoparsec.Internal.Types (DirParser(..), Dir(..), Parser, IResult(..))
 import Data.Attoparsec.Internal (endOfInput, atEnd, satisfyElem)
 import Data.ByteString (ByteString)
 import Data.Foldable (asum)
@@ -105,33 +108,44 @@ liftM2' f a b = do
   return (f x y)
 {-# INLINE liftM2' #-}
 
--- | @many' p@ applies the action @p@ /zero/ or more times. Returns a
--- list of the returned values of @p@. The value returned by @p@ is
--- forced to WHNF.
---
--- >  word  = many' letter
-many' :: (MonadPlus m) => m a -> m [a]
-many' p = many_p
-  where many_p = some_p `mplus` return []
-        some_p = liftM2' (:) p many_p
-{-# INLINE many' #-}
+class DirectedMany (d :: Dir) i where
+  -- | @many' p@ applies the action @p@ /zero/ or more times. Returns a
+  -- list of the returned values of @p@. The value returned by @p@ is
+  -- forced to WHNF.
+  --
+  -- >  word  = many' letter
+  many' :: DirParser d i a -> DirParser d i [a]
+  -- | @many1 p@ applies the action @p@ /one/ or more times. Returns a
+  -- list of the returned values of @p@.
+  --
+  -- >  word  = many1 letter
+  many1 :: DirParser d i a -> DirParser d i [a] -- Alternative f => f a -> f [a]
+  -- | @many1' p@ applies the action @p@ /one/ or more times. Returns a
+  -- list of the returned values of @p@. The value returned by @p@ is
+  -- forced to WHNF.
+  --
+  -- >  word  = many1' letter
+  many1' :: DirParser d i a -> DirParser d i [a]
 
--- | @many1 p@ applies the action @p@ /one/ or more times. Returns a
--- list of the returned values of @p@.
---
--- >  word  = many1 letter
-many1 :: Alternative f => f a -> f [a]
-many1 p = liftA2 (:) p (many p)
-{-# INLINE many1 #-}
+instance DirectedMany Forward i where
+  many' p = many_p
+    where many_p = some_p `mplus` return []
+          some_p = liftM2' (:) p many_p
+  {-# INLINE many' #-}
+  many1 p = liftA2 (:) p (many p)
+  {-# INLINE many1 #-}
+  many1' p = liftM2' (:) p (many' p)
+  {-# INLINE many1' #-}
 
--- | @many1' p@ applies the action @p@ /one/ or more times. Returns a
--- list of the returned values of @p@. The value returned by @p@ is
--- forced to WHNF.
---
--- >  word  = many1' letter
-many1' :: (MonadPlus m) => m a -> m [a]
-many1' p = liftM2' (:) p (many' p)
-{-# INLINE many1' #-}
+instance DirectedMany Backward ByteString where
+  many' p = reverse <$> many_p
+    where many_p = some_p `mplus` return []
+          some_p = liftM2' (:) p many_p
+  {-# INLINE many' #-}
+  many1 p = reverse <$> liftA2 (:) p (many p)
+  {-# INLINE many1 #-}
+  many1' p = liftM2' (:) p (many' p)
+  {-# INLINE many1' #-}
 
 -- | @sepBy p sep@ applies /zero/ or more occurrences of @p@, separated
 -- by @sep@. Returns a list of the values returned by @p@.

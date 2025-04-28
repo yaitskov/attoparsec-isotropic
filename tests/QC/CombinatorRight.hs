@@ -54,6 +54,25 @@ match n (NonNegative x) (NonNegative y) rs =
             B8.replicate x 'x', B8.pack (show n), B8.replicate y 'y'
           ]
 
+manyPrime :: [Word] -> Repack -> Bool
+manyPrime n rs =
+      $(tw "parsed") (parseLbsBack (P.match parser)
+                      ($(tw' "repacked") (repackBS rs input))) ==
+      Just ($(tw' "input") input, n)
+
+  where parser = P.many' (P.decimal <* P.skipSpace)
+        input = B8.pack (unwords $ fmap show n)
+
+many1 :: NonEmptyList Word -> Repack -> Bool
+many1 (NonEmpty n) rs =
+      $(tw "parsed") (parseLbsBack (P.match parser)
+                      ($(tw' "repacked") (repackBS rs input))) ==
+      Just ($(tw' "input") input, n)
+
+  where parser = P.many1 (P.decimal <* P.skipSpace)
+        input = B8.pack (unwords $ fmap show n)
+
+
 matchOp :: Int -> NonNegative Int -> NonNegative Int -> Repack -> Bool
 matchOp n (NonNegative x) (NonNegative y) rs =
       parseLbsBack (P.match parser) (repackBS rs input) == Just ($(tw' "input") input, n)
@@ -201,6 +220,8 @@ tests = [
   , testProperty "count" count
   , testProperty "lookAhead" lookAhead
   , testProperty "match" match
+  , testProperty "manyPrime" manyPrime
+  , testProperty "many1" many1
   , testProperty "matchOp" matchOp
   , testProperty "skipWhileX" skipWhileX
   , testProperty "skipWhileY_X" skipWhileY_X
