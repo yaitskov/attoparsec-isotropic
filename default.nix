@@ -18,9 +18,16 @@ let
   };
 
   sources = [
-    "^src.*$"
+    "^Data.*$"
     "^tests.*$"
+    "^internal.*$"
+    "^benchmarks.$"
+    "^examples.*$"
     "^.*\\.cabal$"
+    "^trace-embrace.yaml$"
+    "^LICENSE$"
+    "^README.md$"
+    "^changelog.md$"
   ];
 
   baseHaskellPkgs = pkgs.haskell.packages.${ghc};

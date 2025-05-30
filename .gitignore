@@ -1,6 +1,8 @@
 *.hi
 *.o
 .haddock-ref
+/result
+/result-2
 /dist/
 /dist-newstyle/
 .cabal-sandbox
