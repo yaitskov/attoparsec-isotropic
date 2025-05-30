@@ -25,9 +25,9 @@ let
 
   baseHaskellPkgs = pkgs.haskell.packages.${ghc};
 
-  base = (hsPkgs.callCabal2nix "attoparsec-monoidal" (lib.sourceByRegex ./. sources) { });
+  base = (hsPkgs.callCabal2nix "attoparsec-isotropic" (lib.sourceByRegex ./. sources) { });
   attoparsec-overlay = _hf: _hp: {
-    attoparsec-monoidal = base;
+    attoparsec-isotropic = base;
   };
 
   hsOverlays = [ hsPkgSetOverlay attoparsec-overlay ];
@@ -41,7 +41,7 @@ let
     (_: { enableSharedExecutables = true; });
 
   shell = hsPkgs.shellFor {
-    packages = p: [ p.attoparsec-monoidal ];
+    packages = p: [ p.attoparsec-isotropic ];
     nativeBuildInputs = (with pkgs; [
       cabal-install
       ghcid
@@ -56,11 +56,11 @@ let
     '';
   };
 
-  attoparsec-monoidal = hsPkgs.attoparsec-monoidal;
+  attoparsec-isotropic = hsPkgs.attoparsec-isotropic;
 in {
   inherit hsPkgs;
   inherit ghc;
   inherit pkgs;
   inherit shell;
-  inherit attoparsec-monoidal;
+  inherit attoparsec-isotropic;
 }

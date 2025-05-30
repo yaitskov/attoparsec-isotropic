@@ -1,4 +1,4 @@
-# Welcome to attoparsec-monoidal
+# Welcome to attoparsec-isotropic
 
 A fork of [attoparsec](https://github.com/haskell/attoparsec) library
 allows to define omnidirected parsers or parsers consuming input from

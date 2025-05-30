@@ -1,5 +1,5 @@
 cabal-version:   3.0
-name:            attoparsec-monoidal
+name:            attoparsec-isotropic
 version:         0.14.4
 license:         BSD-3-Clause
 license-file:    LICENSE
@@ -8,67 +8,10 @@ author:          Daniil Iaitskov <dyaitskov@gmail.com>
 maintainer:      Daniil Iaitskov <dyaitskov@gmail.com>
 stability:       experimental
 synopsis:        right-to-left parser backward compatible with attoparsec
-homepage:        https://github.com/yaitskov/attoparsec-monoidal
-bug-reports:     https://github.com/yaitskov/attoparsec-monoidal/issues
+homepage:        https://github.com/yaitskov/attoparsec-isotropic
+bug-reports:     https://github.com/yaitskov/attoparsec-isotropic/issues
 build-type:      Simple
 description:
-    A fork of <https://github.com/haskell/attoparsec attoparsec> library
-    allows to define omnidirected parsers or parsers consuming input from
-    right-to-left. The library is highly backward compabitle with original
-    interface. Idea to do the fork is inspired by the need to parse a CSV
-    file in <https://github.com/yaitskov/RobinHood-pr0fit robin-hood-profit>
-    in one go with “constant” memory footprint and rows in reverse
-    chronological order.
-    
-    == Example
-    #example#
-    
-    > {-# LANGUAGE OverloadedStrings #-}
-    > {-# LANGUAGE TupleSections #-}
-    > import Data.Attoparsec.ByteString
-    >
-    > test = parseOnly ab "ab" == parseBackOnly ba "ab"
-    >   where
-    >     ab = (,) <$> string "a" <*> string "b"
-    >     ba = (,) <$> string "b" <*> string "a"
-    >
-    > test2 = parseOnly ab "ab" == parseBackOnly ab "ba"
-    >   where
-    >     ab = string "a" >*< string "b"
-    
-    == Running parser in reverse incrementally
-    #running-parser-in-reverse-incrementally#
-    
-    Snippet from the CSV parser app:
-    
-    > consumeFile :: Handle -> (RobinRow -> ProfitM ()) -> ProfitM ()
-    > consumeFile h handleRow = do
-    >   input <- readBlock h
-    >   go Nothing input
-    >   where
-    >     go !loopDetector input = do
-    >       iBlock <- gets (^. #currentBlock)
-    >       if iBlock < 0 && input == mempty
-    >         then pure ()
-    >         else do
-    >           parseBackWith (readBlock h) parseRow input >>= \case
-    >             Fail _unconsumed ctx er -> do
-    >               erpos <- liftIO $ hTell h
-    >               fail $ "Failed to parse CSV file around " <> show erpos <> " byte; due: "
-    >                 <> show er <> "; context: " <> show ctx
-    >             Partial _ -> fail "CSV file is partial"
-    >             Done (unconsumed :: ByteString) (rawRow :: [ByteString]) -> do
-    >               iBlock' <- gets (^. #currentBlock)
-    >               if loopDetector == Just (unconsumed, iBlock')
-    >                 then
-    >                   fail $ "Loop detected. Unconsumed input: " <> show unconsumed
-    >                 else do
-    >                   trashCodes <- asks (^. #codesToSkip)
-    >                   case parseRobinRow trashCodes rawRow of
-    >                     Left e -> fail e
-    >                     Right row -> do
-    >                       forM_ row handleRow
-    >                       go (Just (unconsumed, iBlock')) unconsumed
 
 tested-with:
   GHC == 9.10.1
@@ -93,7 +36,7 @@ Flag developer
 
 -- We need to test and benchmark these modules,
 -- but do not want to expose them to end users
-library attoparsec-monoidal-internal
+library attoparsec-isotropic-internal
   hs-source-dirs: internal
   build-depends: array < 0.6,
                  base >= 4.3 && < 5,
@@ -128,7 +71,7 @@ library
                  text < 3.0,
                  trace-embrace < 2.0.2,
                  ghc-prim < 0.14,
-                 attoparsec-monoidal-internal
+                 attoparsec-isotropic-internal
   if impl(ghc < 7.4)
     build-depends:
       bytestring < 0.10.4.0
@@ -166,7 +109,7 @@ library
     ghc-prof-options: -auto-all
     ghc-options: -Werror
 
-test-suite attoparsec-monoidal-tests
+test-suite attoparsec-isotropic-tests
   type:           exitcode-stdio-1.0
   hs-source-dirs: tests
   main-is:        QC.hs
@@ -193,8 +136,8 @@ test-suite attoparsec-monoidal-tests
 
   build-depends:
     array < 0.6,
-    attoparsec-monoidal,
-    attoparsec-monoidal-internal,
+    attoparsec-isotropic,
+    attoparsec-isotropic-internal,
     base,
     bytestring,
     deepseq >= 1.1,
@@ -220,7 +163,7 @@ test-suite attoparsec-monoidal-tests
     build-depends: fail == 4.9.*,
                    semigroups >=0.16.1 && <0.19
 
-benchmark attoparsec-monoidal-benchmarks
+benchmark attoparsec-isotropic-benchmarks
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmarks benchmarks/warp-3.0.1.1
   ghc-options: -O2 -Wall -rtsopts
@@ -246,8 +189,8 @@ benchmark attoparsec-monoidal-benchmarks
 
   build-depends:
     array,
-    attoparsec-monoidal,
-    attoparsec-monoidal-internal,
+    attoparsec-isotropic,
+    attoparsec-isotropic-internal,
     base == 4.*,
     bytestring >= 0.10.4.0,
     case-insensitive,
@@ -274,4 +217,4 @@ benchmark attoparsec-monoidal-benchmarks
 
 source-repository head
   type:     git
-  location: https://github.com/yaitskov/attoparsec-monoidal.git
+  location: https://github.com/yaitskov/attoparsec-isotropic.git
