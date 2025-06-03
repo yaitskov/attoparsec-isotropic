@@ -1,9 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
 #if __GLASGOW_HASKELL__ >= 702
-{-# LANGUAGE Trustworthy #-} -- Imports internal modules
 #endif
 -- |
 -- Module      :  Data.Attoparsec.Combinator

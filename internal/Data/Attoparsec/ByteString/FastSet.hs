@@ -1,5 +1,4 @@
-{-# LANGUAGE BangPatterns, MagicHash #-}
-
+{-# LANGUAGE MagicHash #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Data.Attoparsec.ByteString.FastSet

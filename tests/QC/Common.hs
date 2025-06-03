@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP, FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module QC.Common
     (

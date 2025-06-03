@@ -1,8 +1,4 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MagicHash #-}
-{-# LANGUAGE BangPatterns #-}
-
 -- Copyright     : Erik de Castro Lopo <erikd@mega-nerd.com>
 -- License       : BSD3
 

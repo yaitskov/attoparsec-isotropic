@@ -1,7 +1,3 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE PolyKinds #-}
 
 module Data.Attoparsec.Internal.Compat where
 

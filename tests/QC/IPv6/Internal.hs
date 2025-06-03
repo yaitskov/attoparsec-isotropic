@@ -11,8 +11,6 @@
 
 -- -----------------------------------------------------------------------------
 
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 module QC.IPv6.Internal where
 

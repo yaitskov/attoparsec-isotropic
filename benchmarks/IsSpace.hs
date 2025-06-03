@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
-{-# LANGUAGE ForeignFunctionInterface #-}
 ----------------------------------------------------------------
 --                                                    2010.10.09
 -- |

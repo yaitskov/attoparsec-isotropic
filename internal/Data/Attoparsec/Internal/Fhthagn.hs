@@ -1,5 +1,4 @@
-{-# LANGUAGE BangPatterns, Rank2Types, OverloadedStrings,
-    RecordWildCards, MagicHash, UnboxedTuples #-}
+{-# LANGUAGE MagicHash, UnboxedTuples #-}
 
 module Data.Attoparsec.Internal.Fhthagn
     (

@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns, CPP #-}
 
 import Common ()
 import Control.Applicative (many)

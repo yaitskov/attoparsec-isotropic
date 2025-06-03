@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns, CPP, OverloadedStrings, ScopedTypeVariables, FlexibleContexts, TemplateHaskell #-}
 module QC.ByteStringRightToLeft (tests) where
 
 #if !MIN_VERSION_base(4,8,0)

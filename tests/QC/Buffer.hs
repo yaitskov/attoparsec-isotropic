@@ -1,6 +1,3 @@
-{-# LANGUAGE BangPatterns, CPP, FlexibleInstances, OverloadedStrings,
-    TypeSynonymInstances #-}
-
 module QC.Buffer (tests) where
 
 #if !MIN_VERSION_base(4,8,0)

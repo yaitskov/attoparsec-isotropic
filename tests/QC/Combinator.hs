@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP, OverloadedStrings, TemplateHaskell #-}
 
 module QC.Combinator where
 

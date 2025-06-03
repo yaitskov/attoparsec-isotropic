@@ -1,11 +1,4 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 #if __GLASGOW_HASKELL__ >= 702
-{-# LANGUAGE Trustworthy #-} -- Imports internal modules
 #endif
 
 -- |

@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 
 module QC.Rechunked (
       rechunkBS

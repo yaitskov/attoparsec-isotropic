@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP, OverloadedStrings, TemplateHaskell, ScopedTypeVariables #-}
-{-# LANGUAGE BangPatterns, TypeApplications, DataKinds, DeriveGeneric #-}
 
 module QC.MonoidalScientific where
 

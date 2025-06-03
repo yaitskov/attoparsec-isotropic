@@ -1,6 +1,3 @@
-{-# LANGUAGE CPP, BangPatterns, GeneralizedNewtypeDeriving, OverloadedStrings,
-    Rank2Types, RecordWildCards, TypeFamilies, DataKinds, TypeApplications,
-    MultiParamTypeClasses, FlexibleContexts, FlexibleInstances #-}
 -- |
 -- Module      :  Data.Attoparsec.Internal.Types
 -- Copyright   :  Bryan O'Sullivan 2007-2015

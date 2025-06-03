@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures -fno-warn-orphans #-}
 module HeadersByteString.Atto
     (

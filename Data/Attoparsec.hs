@@ -9,7 +9,6 @@
 -- | 'parseOnly'             | 'parseOnlyBack'         |
 -- +-------------------------+-------------------------+
 --
-{-# LANGUAGE TemplateHaskell #-}
 module Data.Attoparsec (module Data.Attoparsec.ByteString) where
 import Haddock.UseRefs
 import Data.Attoparsec.ByteString.Lazy (parseOnlyBack)

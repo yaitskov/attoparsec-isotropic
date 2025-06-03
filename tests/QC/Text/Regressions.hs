@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 
 module QC.Text.Regressions (
       tests

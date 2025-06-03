@@ -1,7 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE BangPatterns #-}
-
 module Network.Wai.Handler.Warp.RequestHeader (
       parseHeaderLines
     , parseByteRanges

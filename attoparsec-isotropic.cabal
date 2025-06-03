@@ -91,19 +91,35 @@ Flag developer
   Default: False
   Manual: True
 
+common base
+  default-language: GHC2024
+  ghc-options: -Wall
+  default-extensions:
+    CPP
+    DefaultSignatures
+    OverloadedStrings
+    TemplateHaskell
+    TypeFamilies
+  build-depends:
+      array < 1
+    , base < 5
+    , bytestring < 1
+    , containers < 1
+    , deepseq < 2
+    , fail < 5
+    , haddock-use-refs < 2
+    , scientific < 1
+    , semigroups < 0.21
+    , tagged < 1
+    , text < 3
+    , trace-embrace < 3
+    , transformers < 1
+
 -- We need to test and benchmark these modules,
 -- but do not want to expose them to end users
 library attoparsec-isotropic-internal
+  import: base
   hs-source-dirs: internal
-  build-depends: array < 0.6,
-                 base >= 4.3 && < 5,
-                 bytestring <0.13,
-                 tagged < 0.9,
-                 trace-embrace < 2.0.2,
-                 text < 3.0
-  if !impl(ghc >= 8.0)
-    build-depends: semigroups >=0.16.1 && <0.21
-
   exposed-modules: Data.Attoparsec.ByteString.Buffer
                    Data.Attoparsec.ByteString.FastSet
                    Data.Attoparsec.Internal.Compat
@@ -111,33 +127,12 @@ library attoparsec-isotropic-internal
                    Data.Attoparsec.Text.Buffer
                    Data.Attoparsec.Text.FastSet
   ghc-options: -O2 -Wall
-  default-language: Haskell2010
-  default-extensions:
-    TemplateHaskell
 
 library
-  build-depends: array < 0.6,
-                 base >= 4.5 && < 5,
-                 bytestring <0.13,
-                 containers < 0.9,
-                 deepseq < 1.8,
-                 haddock-use-refs < 2.0,
-                 scientific >= 0.3.1 && < 0.4,
-                 tagged < 1.0,
-                 transformers >= 0.2 && (< 0.4 || >= 0.4.1.0) && < 0.7,
-                 text < 3.0,
-                 trace-embrace < 2.0.2,
-                 ghc-prim < 0.14,
-                 attoparsec-isotropic-internal
-  if impl(ghc < 7.4)
-    build-depends:
-      bytestring < 0.10.4.0
-
-  if !impl(ghc >= 8.0)
-    -- Data.Semigroup && Control.Monad.Fail are available in base-4.9+
-    build-depends: fail == 4.9.*,
-                   semigroups >=0.16.1 && <0.21
-
+  import: base
+  build-depends:
+      attoparsec-isotropic-internal
+    , ghc-prim < 0.14
   exposed-modules: Data.Attoparsec
                    Data.Attoparsec.ByteString
                    Data.Attoparsec.ByteString.Char8
@@ -155,18 +150,12 @@ library
   other-modules:   Data.Attoparsec.ByteString.Internal
                    Data.Attoparsec.Text.Internal
   ghc-options: -O2 -Wall
-
-  default-language: Haskell2010
-  default-extensions:
-    ImportQualifiedPost
-    TypeOperators
-    TemplateHaskell
-
   if flag(developer)
     ghc-prof-options: -auto-all
     ghc-options: -Werror
 
 test-suite attoparsec-isotropic-tests
+  import: base
   type:           exitcode-stdio-1.0
   hs-source-dirs: tests
   main-is:        QC.hs
@@ -192,35 +181,21 @@ test-suite attoparsec-isotropic-tests
     ghc-options: -Werror
 
   build-depends:
-    array < 0.6,
-    attoparsec-isotropic,
-    attoparsec-isotropic-internal,
-    base,
-    bytestring,
-    deepseq >= 1.1,
-    QuickCheck >= 2.13.2 && < 2.16,
-    quickcheck-unicode,
-    scientific,
-    tasty >= 0.11,
-    tasty-bench >= 0.3,
-    tasty-quickcheck >= 0.8,
-    text >= 2.1.1,
-    transformers,
-    trace-embrace,
-    vector,
+      QuickCheck >= 2.13.2 && < 2.16
+    , attoparsec-isotropic
+    , attoparsec-isotropic-internal
+    , quickcheck-unicode
+    , tasty >= 1 && < 2
+    , tasty-bench >= 0.3 && < 1
+    , tasty-quickcheck >= 0.8 && < 1
+    , vector
+
     -- benchmark dependencies
     -- cabal2nix skips dependencies from benchmark
-    tasty-bench >= 0.3,
-    http-types
-
-  default-language: Haskell2010
-
-  if !impl(ghc >= 8.0)
-    -- Data.Semigroup && Control.Monad.Fail are available in base-4.9+
-    build-depends: fail == 4.9.*,
-                   semigroups >=0.16.1 && <0.19
+    , http-types
 
 benchmark attoparsec-isotropic-benchmarks
+  import: base
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmarks benchmarks/warp-3.0.1.1
   ghc-options: -O2 -Wall -rtsopts
@@ -245,32 +220,17 @@ benchmark attoparsec-isotropic-benchmarks
     ghc-options: -Werror
 
   build-depends:
-    array,
-    attoparsec-isotropic,
-    attoparsec-isotropic-internal,
-    base == 4.*,
-    bytestring >= 0.10.4.0,
-    case-insensitive,
-    containers >= 0.7,
-    deepseq >= 1.1,
-    directory,
-    filepath,
-    ghc-prim,
-    http-types,
-    parsec >= 3.1.2,
-    scientific,
-    tasty-bench >= 0.3,
-    text >= 1.1.1.0,
-    transformers,
-    unordered-containers,
-    vector
-
-  default-language: Haskell2010
-
-  if !impl(ghc >= 8.0)
-    -- Data.Semigroup && Control.Monad.Fail are available in base-4.9+
-    build-depends: fail == 4.9.*,
-                   semigroups >=0.16.1 && <0.19
+      attoparsec-isotropic
+    , attoparsec-isotropic-internal
+    , case-insensitive
+    , directory
+    , filepath
+    , ghc-prim
+    , http-types
+    , parsec >= 3.1.2
+    , tasty-bench >= 0.3 && < 1
+    , unordered-containers
+    , vector
 
 source-repository head
   type:     git

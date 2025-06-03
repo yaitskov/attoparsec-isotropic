@@ -1,6 +1,3 @@
-{-# LANGUAGE BangPatterns, CPP, GADTs, OverloadedStrings, RankNTypes,
-    RecordWildCards, TypeApplications, ScopedTypeVariables, KindSignatures,
-    DataKinds, FlexibleContexts, PolyKinds, ConstraintKinds, FlexibleInstances #-}
 -- |
 -- Module      :  Data.Attoparsec.ByteString.Internal
 -- Copyright   :  Bryan O'Sullivan 2007-2015

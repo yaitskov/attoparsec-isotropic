@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns, CPP, OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-unused-binds #-}
 
 module Aeson

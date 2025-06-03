@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns, CPP, OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 module QC.Text (tests) where
 

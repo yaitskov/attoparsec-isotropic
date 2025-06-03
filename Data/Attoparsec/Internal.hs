@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns, CPP, ScopedTypeVariables, DataKinds, TypeApplications, FlexibleContexts, IncoherentInstances #-}
 -- |
 -- Module      :  Data.Attoparsec.Internal
 -- Copyright   :  Bryan O'Sullivan 2007-2015

@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns, CPP, FlexibleContexts #-}
 
 module Main (main) where
 

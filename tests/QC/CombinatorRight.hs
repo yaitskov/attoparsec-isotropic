@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP, OverloadedStrings, TemplateHaskell, ScopedTypeVariables, BangPatterns, TypeApplications, DataKinds #-}
 
 module QC.CombinatorRight where
 

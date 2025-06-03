@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE BangPatterns, FlexibleInstances, ConstraintKinds, FlexibleContexts, LambdaCase #-}
 
 -- |
 -- Module      :  Data.Attoparsec.ByteString.Char8

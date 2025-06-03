@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 
 -- This benchmark reveals a huge performance regression that showed up
 -- under GHC 7.8.1 (https://github.com/bos/attoparsec/issues/56).

@@ -1,5 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
-
+{-# LANGUAGE NoCPP #-}
 module Genome
     (
       genome
