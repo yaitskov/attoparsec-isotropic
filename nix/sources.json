@@ -10,7 +10,7 @@
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "trace-embrace": {
-        "sha256": "05y2v33k978kbmvrilfvy8pkdkswygdxn4draqs7wlpsam0ds1pm",
+        "sha256": "1i0l05199dz8ahl5813gxn31askqq6drm0i19l8cpl8y0bkvsblm",
         "url": "https://github.com/yaitskov/trace-embrace/archive/d113d759214ac72a23d6ae2f5165c257af5e8301.tar.gz",
         "url_template": "https://github.com/yaitskov/trace-embrace/archive/d113d759214ac72a23d6ae2f5165c257af5e8301.tar.gz",
         "type": "tarball"
