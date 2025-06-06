@@ -2,14 +2,14 @@
     "trace-embrace": {
         "branch": "master",
         "repo": "/home/dan/pro/seed-projects/trace-if",
-        "rev": "6c6c61c7fbfdbdc08885d2cbb0d4ccaf2678c33b",
+        "rev": "d113d759214ac72a23d6ae2f5165c257af5e8301",
         "type": "git"
     },
 
     "nixpkgs": {
         "branch": "master",
         "repo": "/home/dan/pro/nixpkgs",
-        "rev": "e7a98efedcc1d0a2a8455580c562b20718c36444",
+        "rev": "da5af46a09eeb2b1c8f4193d626727d5b7460601",
         "type": "git"
     },
 

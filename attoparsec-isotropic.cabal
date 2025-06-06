@@ -1,6 +1,6 @@
 cabal-version:   3.0
 name:            attoparsec-isotropic
-version:         0.14.4
+version:         0.14.5
 license:         BSD-3-Clause
 license-file:    LICENSE
 category:        Text, Parsing
@@ -71,7 +71,7 @@ description:
     >                       go (Just (unconsumed, iBlock')) unconsumed
 
 tested-with:
-  GHC == 9.10.1
+  GHC == 9.10.1, GHC == 9.12.2
 
 extra-source-files:
     benchmarks/*.txt
@@ -112,7 +112,7 @@ common base
     , semigroups < 0.21
     , tagged < 1
     , text < 3
-    , trace-embrace < 3
+    , trace-embrace >= 1.2 && < 3
     , transformers < 1
 
 -- We need to test and benchmark these modules,

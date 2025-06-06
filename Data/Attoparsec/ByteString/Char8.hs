@@ -130,10 +130,12 @@ module Data.Attoparsec.ByteString.Char8
 
 import Control.Applicative (Alternative ((<|>)))
 import Control.Monad (void, when)
-import Debug.TraceEmbrace
+import Debug.TraceEmbrace ( tw )
 import Data.Attoparsec.ByteString.FastSet (charClass, memberChar)
 import Data.Attoparsec.ByteString.Internal (DirParser, Parser, BackParser, DirectedTuple (..))
 import Data.Attoparsec.Combinator
+    ( many1', many', many1, try, (<?>), choice, option, sepBy, sepBy', sepBy1,
+      sepBy1', manyTill, manyTill', skipMany, skipMany1, count, eitherP )
 import Data.Bits (Bits, (.|.), shiftL)
 import Data.ByteString.Internal (c2w, w2c)
 import Data.Int (Int8, Int16, Int32, Int64)

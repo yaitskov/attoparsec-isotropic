@@ -1,3 +1,8 @@
+# 0.14.5
+
+* Fork from attoparsec
+* Clean support of GHC-9.12.2
+
 # 0.14.4
 
 * Fix a segmentation fault when built against `text-2.0`

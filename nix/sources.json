@@ -3,16 +3,16 @@
         "branch": "master",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "e7a98efedcc1d0a2a8455580c562b20718c36444",
-        "sha256": "sha256:0pcvllrvnbr2s1sfc8gizz864b1wwz9mac3ri3fmkrxvajwlmmdd",
+        "rev": "da5af46a09eeb2b1c8f4193d626727d5b7460601",
+        "sha256": "sha256:1hmj9mg81gy8c7v8j563793sckawyxnca60zlif7qpsri597hlhh",
         "type": "tarball",
         "url": "https://github.com/NixOS/nixpkgs/archive/e7a98efedcc1d0a2a8455580c562b20718c36444.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "trace-embrace": {
-        "sha256": "05y2v33k978kbmvrilfvy8pkdkswygdxn4draqs7wlpsam0ds1pn",
-        "url": "https://github.com/yaitskov/trace-embrace/archive/6c6c61c7fbfdbdc08885d2cbb0d4ccaf2678c33b.tar.gz",
-        "url_template": "https://github.com/yaitskov/trace-embrace/archive/6c6c61c7fbfdbdc08885d2cbb0d4ccaf2678c33b.tar.gz",
+        "sha256": "05y2v33k978kbmvrilfvy8pkdkswygdxn4draqs7wlpsam0ds1pm",
+        "url": "https://github.com/yaitskov/trace-embrace/archive/d113d759214ac72a23d6ae2f5165c257af5e8301.tar.gz",
+        "url_template": "https://github.com/yaitskov/trace-embrace/archive/d113d759214ac72a23d6ae2f5165c257af5e8301.tar.gz",
         "type": "tarball"
     },
     "upload-doc-to-hackage": {

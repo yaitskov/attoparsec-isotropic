@@ -45,7 +45,7 @@ import Data.Tagged (Tagged(..), untag)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Text.Unsafe (Iter(..))
-import Debug.TraceEmbrace
+import Debug.TraceEmbrace (tw)
 import Prelude hiding (succ)
 import Data.Attoparsec.ByteString.Buffer (Dir (..))
 import qualified Data.Attoparsec.ByteString.Buffer as B

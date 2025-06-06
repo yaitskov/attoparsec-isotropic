@@ -96,7 +96,7 @@ import Data.List (intercalate)
 import Data.Tagged (Tagged(..), untag)
 import Data.Tuple (swap)
 import Data.Word (Word8)
-import Debug.TraceEmbrace
+import Debug.TraceEmbrace ( tr, tw )
 import qualified Foreign.ForeignPtr as FP
 import Foreign.Ptr (Ptr, castPtr)
 import qualified Foreign.Ptr as FP

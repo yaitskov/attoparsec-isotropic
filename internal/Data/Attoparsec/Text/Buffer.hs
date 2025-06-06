@@ -52,7 +52,7 @@ import Data.Text.Internal.Unsafe.Char (unsafeChr)
 import Data.Text.Unsafe (lengthWord16)
 #endif
 import Data.Text.Unsafe (Iter(..))
-import Debug.TraceEmbrace
+import Debug.TraceEmbrace ( ShowTrace(ShowTrace) )
 import Foreign.Storable (sizeOf)
 import GHC.Exts (Int(..), indexIntArray#, unsafeCoerce#, writeIntArray#)
 import GHC.ST (ST(..), runST)

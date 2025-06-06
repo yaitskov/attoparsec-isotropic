@@ -63,15 +63,15 @@ import Control.Exception (assert)
 import Data.ByteString.Internal (ByteString(..), nullForeignPtr)
 import qualified Data.ByteString as B
 import Data.Attoparsec.Internal.Fhthagn (inlinePerformIO)
-import Data.Attoparsec.Internal.Compat
+import Data.Attoparsec.Internal.Compat ( mkPS, withPS )
 import Data.List (foldl1')
 import Data.Monoid as Mon (Monoid(..))
-import Data.Proxy
+import Data.Proxy ( Proxy )
 #if !MIN_VERSION_base(4,20,0)
 import Data.Semigroup (Semigroup(..))
 #endif
 import Data.Word (Word8)
-import Debug.TraceEmbrace
+import Debug.TraceEmbrace ( tr, tw', ShowTrace(ShowTrace) )
 import Foreign.ForeignPtr (ForeignPtr, withForeignPtr)
 import Foreign.Marshal.Utils (copyBytes)
 import Foreign.Ptr (castPtr, plusPtr)

@@ -23,7 +23,6 @@ module Data.Attoparsec.Number
 import Control.DeepSeq (NFData(rnf))
 import Data.Data (Data)
 import Data.Function (on)
-import Data.Typeable (Typeable)
 
 -- | A numeric type that can represent integers accurately, and
 -- floating point numbers to the precision of a 'Double'.
@@ -32,7 +31,7 @@ import Data.Typeable (Typeable)
 -- major release.  Use the 'Data.Scientific.Scientific' type instead.
 data Number = I !Integer
             | D {-# UNPACK #-} !Double
-              deriving (Typeable, Data)
+              deriving (Data)
 {-# DEPRECATED Number "Use Scientific instead." #-}
 
 instance Show Number where

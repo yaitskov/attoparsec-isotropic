@@ -23,9 +23,3 @@ in hfinal: hprev:
           sha256 = "sha256-fxrfMQ4CUthzNwYVjwV5kJmmPgimVpbnVhxnoYi1GrE=";
         } {};
     }
-    #   cabal-install = hfinal.callHackageDirect {
-    #        pkg = "cabal-install";
-    #        ver = "3.12.1.0";
-    #        sha256 = "sha256-iBQL6gRpe6Nzy9pnbHxMKtPQCA3edF9VMuFLaNMLetk=";
-    #   } {};
-    # }
